@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export + Fixes Logo</title>
+  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export + Fixes (Spalten-Import)</title>
 
   <style>
     :root{
@@ -305,7 +305,7 @@
 
 <body>
 <header>
-  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import • Fixes ibis-Logo • Druck/PDF Export</h1>
+  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (Spalten-Fix) • Druck/PDF Export</h1>
 
   <div class="toolbar">
     <label class="btn primary" for="pdfFile">PDF importieren</label>
@@ -330,7 +330,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor (alles anpassbar)</strong>
-      <span class="hint">Jede Position kann eigenen MwSt-Satz haben (oder „nicht steuerbar“).</span>
+      <span class="hint">MwSt pro Zeile wählbar. PDF-Import nutzt jetzt Spalten (X-Positionen), um „Verrutschen“ zu vermeiden.</span>
     </div>
 
     <div class="bd">
@@ -799,14 +799,17 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   }
 
   // -----------------------------
-  // FIX: PDF Text Extraction -> "line-based" grouping by Y
-  //      + verhindert getrennte Tausender (z.B. "3" "167.50")
+  // FIX: Spaltenbasierte Zeilen-Erzeugung (gegen Verrutschen)
+  // - gruppiert nach Y
+  // - bildet "Zellen" anhand X-Gaps und verbindet Zahl-Fragmente
+  // - gibt Zeilen als: cell1 | cell2 | cell3 ... aus
   // -----------------------------
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
 
     const rows = new Map(); // yKey -> [{x,str}]
     const Y_TOL = 2.0;
+
     for (const it of content.items){
       const str = String(it.str ?? "").trim();
       if (!str) continue;
@@ -822,48 +825,51 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     const yKeys = Array.from(rows.keys()).sort((a,b) => b - a);
     const lines = [];
 
-    // Heuristik: wenn zwei Text-Items numerisch "zusammenkleben" sollen, kein Leerzeichen einfügen
-    const isDigit = (ch) => ch >= "0" && ch <= "9";
-    const startsNumericGlue = (s) => {
-      const c = s[0];
-      return isDigit(c) || c === "." || c === "," || c === ")" || c === "%";
-    };
-    const endsNumericGlue = (s) => {
-      const c = s[s.length - 1];
-      return isDigit(c) || c === "(" || c === "." || c === ",";
+    const CELL_GAP = 26; // ab hier neue Zelle (Spalte)
+    const GLUE_GAP = 10; // kleine Lücke: Zahl-Fragmente kleben
+
+    const isDigit = (c) => c >= "0" && c <= "9";
+    const startsNum = (s) => isDigit((s[0]||"")) || s[0] === "." || s[0] === "," || s[0] === ")" || s[0] === "%";
+    const endsNum = (s) => {
+      const c = s[s.length-1] || "";
+      return isDigit(c) || c === "." || c === "," || c === "(";
     };
 
     for (const yKey of yKeys){
       const parts = rows.get(yKey).sort((a,b) => a.x - b.x);
-      let line = "";
+
+      const cells = [];
+      let cell = "";
       let lastX = null;
 
       for (const p of parts){
         const gap = (lastX === null) ? 0 : (p.x - lastX);
 
-        // Standard: Spaltensprünge => extra Abstand
-        if (lastX !== null && gap > 18){
-          line += "  ";
-        } else if (line){
-          // FIX: wenn numerische Fragmente vermutlich zusammengehören, KEIN Space
-          const prev = line;
-          const prevLast = prev[prev.length - 1] || "";
-          const nextFirst = p.str[0] || "";
-
-          const glueLikely =
-            endsNumericGlue(prev) &&
-            startsNumericGlue(p.str) &&
-            gap <= 10; // kleine Lücke = sehr oft "zerlegte Zahl"
-
-          if (!glueLikely) line += " ";
+        if (lastX !== null && gap > CELL_GAP){
+          if (cell.trim()) cells.push(cell.trim());
+          cell = p.str;
+          lastX = p.x;
+          continue;
         }
 
-        line += p.str;
+        if (!cell){
+          cell = p.str;
+          lastX = p.x;
+          continue;
+        }
+
+        const glueLikely = gap <= GLUE_GAP && endsNum(cell) && startsNum(p.str);
+        cell += glueLikely ? "" : " ";
+        cell += p.str;
         lastX = p.x;
       }
 
-      lines.push(line.trim());
+      if (cell.trim()) cells.push(cell.trim());
+
+      const line = cells.join(" | ").trim();
+      if (line) lines.push(line);
     }
+
     return lines.join("\n");
   }
 
@@ -923,13 +929,13 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     const k = el.dataset.k;
     if (!state.items[i]) return;
 
-    let v = el.value;
+    let vv = el.value;
 
     if (["qty","unit","debit","credit","vatRate"].includes(k)){
-      if (String(v).trim() === "") state.items[i][k] = "";
-      else state.items[i][k] = toNumber(v);
+      if (String(vv).trim() === "") state.items[i][k] = "";
+      else state.items[i][k] = toNumber(vv);
     } else {
-      state.items[i][k] = v;
+      state.items[i][k] = vv;
     }
     recalc();
   });
@@ -1366,7 +1372,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Parser (FIX: join Tausender-Splits pro Zeile)
+  // Parser (Spalten-robust + Fallback auf alten Parser)
   // -----------------------------
   function parseInvoiceFromText(text){
     const out = collectFormData();
@@ -1408,155 +1414,221 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     if (departure) out.departure = departure.replace(/\//g,".");
     if (currency) out.currency = currency;
 
-    // FIX: Join typische Tausender-Splits: "3 167.50" -> "3167.50"
-    const joinThousandsSplits = (s) => {
-      // nur wenn es wie Tausender aussieht: 1-3 Ziffern + Leerraum + 3 Ziffern (optional Dezimal)
-      // mehrfach ausführen, falls "1 234 567.89"
-      let prev;
-      do{
-        prev = s;
-        s = s.replace(/(\d{1,3})\s+(\d{3}(?:[.,]\d+)?)/g, "$1$2");
-      } while (s !== prev);
-      return s;
-    };
-
-    const lines = t.split("\n")
-      .map(s => joinThousandsSplits(s.trim()))
-      .filter(Boolean);
-
-    const items = [];
-    const dateRe = /^(\d{2}[.\/]\d{2}[.\/](?:\d{2}|\d{4}))\s+(.*)$/;
-
     const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
     const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
     const isCityTaxDesc = (desc) => /(city\s*tax|tourist\s*tax|taxe\s*de\s*s[eé]jour|kurtaxe)/i.test(desc);
 
-    // numbers incl. thousands separators, negative, parentheses
-    const NUM_RE = /(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)/g;
-    function toSignedNumber(raw){
-      let s = String(raw ?? "").trim();
-      if (!s) return 0;
-      const isParens = /^\(.*\)$/.test(s);
-      s = s.replace(/[()]/g, "");
-      let n = toNumber(s);
+    // ---------- A) Spalten-Parser (bevorzugt) ----------
+    const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
+
+    const dateRe = /^(\d{2}[.\/]\d{2}[.\/](?:\d{2}|\d{4}))\b/;
+
+    function parseMoneyCell(s){
+      const raw = String(s || "").trim();
+      if (!raw) return 0;
+      const isParens = /^\(.*\)$/.test(raw);
+      const cleaned = raw.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
+      let n = toNumber(cleaned);
       if (isParens) n = -Math.abs(n);
       return n;
     }
 
-    function pushItem({date, desc, qty, unit, debit, credit}){
-      const city = isCityTaxDesc(desc);
-      const creditLike = isCreditDesc(desc);
-
-      items.push({
-        date: date ? normDate(date) : "",
-        desc: desc || "",
-        qty: (qty === undefined ? "" : qty),
-        unit: (unit === undefined ? "" : unit),
-        debit: creditLike ? "" : (debit === "" ? "" : toNumber(debit)),
-        credit: creditLike ? (credit === "" ? toNumber(credit) : toNumber(credit)) : (credit === "" ? "" : toNumber(credit)),
-        vatRate: city ? 0.0 : defaultRate,
-        vatEnabled: city ? false : true
-      });
+    function looksMoney(s){
+      const str = String(s||"");
+      if (!/[\d]/.test(str)) return false;
+      // oft money enthält . oder , oder Tausender
+      return /[.,]/.test(str) || /\d{4,}/.test(str) || /-/.test(str) || /\(\s*\d/.test(str);
     }
 
-    for (let i=0; i<lines.length; i++){
-      const m = lines[i].match(dateRe);
-      if (!m) continue;
+    function bestDescription(cols, skipIdx){
+      let best = "";
+      let bestScore = -1;
+      for (let i=0; i<cols.length; i++){
+        if (skipIdx.has(i)) continue;
+        const s = cols[i];
+        const letters = (s.match(/[A-Za-zÄÖÜäöü]/g)||[]).length;
+        if (letters > bestScore){
+          bestScore = letters;
+          best = s;
+        }
+      }
+      return best;
+    }
 
-      const date = m[1];
-      const rest = m[2];
+    const items = [];
 
-      const nums = rest.match(NUM_RE) || [];
+    for (const line of lines){
+      const dm = line.match(dateRe);
+      if (!dm) continue;
 
-      // Case A: ... QTY UNIT AMOUNT
-      if (nums.length >= 3){
-        const last3 = nums.slice(-3).map(toSignedNumber);
-        const qty = last3[0];
-        const unit = last3[1];
-        const amount = last3[2];
+      if (line.includes("|")){
+        const parts = line.split(/\s*\|\s*/).map(s=>s.trim()).filter(Boolean);
+        if (parts.length < 3) continue;
 
-        if (Math.abs(qty) > 0 && Math.abs(qty) < 100000 && Math.abs(unit) > 0 && amount !== 0){
-          const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?\s*){3}$/, "").trim();
+        const date = dm[1];
+        const cols = parts.slice(1); // ohne Date
+
+        // Geldspalten: meist ganz rechts (1 oder 2)
+        let debit = "";
+        let credit = "";
+
+        const last = cols[cols.length-1] ?? "";
+        const secondLast = cols[cols.length-2] ?? "";
+
+        const lastIsMoney = looksMoney(last);
+        const secondIsMoney = looksMoney(secondLast);
+
+        if (lastIsMoney && secondIsMoney){
+          debit = parseMoneyCell(secondLast);
+          credit = parseMoneyCell(last);
+        } else if (lastIsMoney){
+          debit = parseMoneyCell(last);
+        }
+
+        // Qty: suche eine "kleine" Ganzzahl-Spalte
+        let qty = "";
+        let qtyIdx = -1;
+        for (let i=0; i<cols.length; i++){
+          const c = cols[i];
+          if (/^\d{1,4}$/.test(c)){
+            qty = toNumber(c);
+            qtyIdx = i;
+            break;
+          }
+        }
+
+        const skip = new Set();
+        if (qtyIdx >= 0) skip.add(qtyIdx);
+        if (lastIsMoney) skip.add(cols.length-1);
+        if (lastIsMoney && secondIsMoney) skip.add(cols.length-2);
+
+        const desc = bestDescription(cols, skip) || cols[0] || "";
+
+        // Negative Debit -> Credit
+        let debitVal = (debit === "" ? "" : Number(debit));
+        let creditVal = (credit === "" ? "" : Number(credit));
+        if (debitVal !== "" && debitVal < 0){
+          creditVal = Math.abs(debitVal);
+          debitVal = "";
+        }
+
+        const city = isCityTaxDesc(desc);
+        const creditLike = isCreditDesc(desc);
+
+        items.push({
+          date: normDate(date),
+          desc,
+          qty: qty === "" ? "" : qty,
+          unit: "",
+          debit: creditLike ? "" : (debitVal === "" ? "" : Math.abs(debitVal)),
+          credit: creditLike
+            ? (creditVal === "" ? (debitVal === "" ? "" : Math.abs(debitVal)) : Math.abs(creditVal))
+            : (creditVal === "" ? "" : Math.abs(creditVal)),
+          vatRate: city ? 0.0 : defaultRate,
+          vatEnabled: city ? false : true
+        });
+
+        continue;
+      }
+    }
+
+    // ---------- B) Fallback (dein alter "Text-Parsen", falls keine Items via Spalten) ----------
+    if (items.length === 0){
+      const oldLines = lines;
+
+      const dateLineRe = /^(\d{2}[.\/]\d{2}[.\/](?:\d{2}|\d{4}))\s+(.*)$/;
+
+      const NUM_RE = /(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)/g;
+      function toSignedNumber(raw){
+        let s = String(raw ?? "").trim();
+        if (!s) return 0;
+        const isParens = /^\(.*\)$/.test(s);
+        s = s.replace(/[()]/g, "");
+        let n = toNumber(s);
+        if (isParens) n = -Math.abs(n);
+        return n;
+      }
+
+      for (let i=0; i<oldLines.length; i++){
+        const m = oldLines[i].match(dateLineRe);
+        if (!m) continue;
+
+        const date = m[1];
+        const rest = m[2];
+
+        const nums = rest.match(NUM_RE) || [];
+
+        if (nums.length >= 3){
+          const last3 = nums.slice(-3).map(toSignedNumber);
+          const qty = last3[0];
+          const unit = last3[1];
+          const amount = last3[2];
+
+          if (Math.abs(qty) > 0 && Math.abs(qty) < 100000 && Math.abs(unit) > 0 && amount !== 0){
+            const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?\s*){3}$/, "").trim();
+            const creditLike = isCreditDesc(desc);
+            const negative = amount < 0;
+
+            items.push({
+              date: normDate(date),
+              desc,
+              qty: Math.abs(qty),
+              unit: Math.abs(unit),
+              debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+              credit: (creditLike || negative) ? Math.abs(amount) : "",
+              vatRate: isCityTaxDesc(desc) ? 0.0 : defaultRate,
+              vatEnabled: !isCityTaxDesc(desc)
+            });
+            continue;
+          }
+        }
+
+        if (nums.length === 2){
+          const n1 = toSignedNumber(nums[0]);
+          const n2 = toSignedNumber(nums[1]);
+          const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?\s*){2}$/, "").trim();
+          const qty = (Math.abs(n1) > 0 && Math.abs(n1) < 100000) ? Math.abs(n1) : "";
+          const amount = n2;
+          let unit = "";
+          if (qty && amount !== 0) unit = round2(Math.abs(amount) / qty);
+
           const creditLike = isCreditDesc(desc);
           const negative = amount < 0;
 
-          pushItem({
-            date, desc,
-            qty: Math.abs(qty),
-            unit: Math.abs(unit),
+          items.push({
+            date: normDate(date),
+            desc,
+            qty: qty || "",
+            unit: unit || "",
             debit: (!creditLike && !negative) ? Math.abs(amount) : "",
-            credit: (creditLike || negative) ? Math.abs(amount) : ""
+            credit: (creditLike || negative) ? Math.abs(amount) : "",
+            vatRate: isCityTaxDesc(desc) ? 0.0 : defaultRate,
+            vatEnabled: !isCityTaxDesc(desc)
           });
           continue;
         }
-      }
 
-      // Case B: ... QTY AMOUNT
-      if (nums.length === 2){
-        const n1 = toSignedNumber(nums[0]);
-        const n2 = toSignedNumber(nums[1]);
+        const lastNum = rest.match(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/);
+        if (lastNum){
+          const amount = toSignedNumber(lastNum[1]);
+          if (amount !== 0){
+            const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/, "").trim();
+            const creditLike = isCreditDesc(desc);
+            const negative = amount < 0;
 
-        const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?\s*){2}$/, "").trim();
-
-        const qty = (Math.abs(n1) > 0 && Math.abs(n1) < 100000) ? Math.abs(n1) : "";
-        const amount = n2;
-        let unit = "";
-        if (qty && amount !== 0) unit = round2(Math.abs(amount) / qty);
-
-        const creditLike = isCreditDesc(desc);
-        const negative = amount < 0;
-
-        pushItem({
-          date, desc,
-          qty: qty || "",
-          unit: unit || "",
-          debit: (!creditLike && !negative) ? Math.abs(amount) : "",
-          credit: (creditLike || negative) ? Math.abs(amount) : ""
-        });
-        continue;
-      }
-
-      // Case C: last numeric amount only
-      const lastNum = rest.match(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/);
-      if (lastNum){
-        const amount = toSignedNumber(lastNum[1]);
-        if (amount !== 0){
-          const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/, "").trim();
-          const creditLike = isCreditDesc(desc);
-          const negative = amount < 0;
-
-          pushItem({
-            date, desc,
-            qty: "",
-            unit: "",
-            debit: (!creditLike && !negative) ? Math.abs(amount) : "",
-            credit: (creditLike || negative) ? Math.abs(amount) : ""
-          });
-          continue;
+            items.push({
+              date: normDate(date),
+              desc,
+              qty: "",
+              unit: "",
+              debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+              credit: (creditLike || negative) ? Math.abs(amount) : "",
+              vatRate: isCityTaxDesc(desc) ? 0.0 : defaultRate,
+              vatEnabled: !isCityTaxDesc(desc)
+            });
+            continue;
+          }
         }
-      }
-
-      // Case D: next lines "2 x 135.00" + amount
-      const m2 = (lines[i+1] || "").match(/^(\d+(?:[.,]\d+)?)\s*[xX]\s*(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)$/);
-      const m3 = (lines[i+2] || "").match(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/);
-      if (m2 && m3){
-        const qty = toNumber(m2[1]);
-        const unit = toSignedNumber(m2[2]);
-        const amount = toSignedNumber(m3[1]);
-
-        const desc = rest.trim();
-        const creditLike = isCreditDesc(desc);
-        const negative = amount < 0;
-
-        pushItem({
-          date, desc,
-          qty: Math.abs(qty),
-          unit: Math.abs(unit),
-          debit: (!creditLike && !negative) ? Math.abs(amount) : "",
-          credit: (creditLike || negative) ? Math.abs(amount) : ""
-        });
-        i += 2;
-        continue;
       }
     }
 
