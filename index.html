@@ -799,13 +799,14 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   }
 
   // -----------------------------
-  // BEST OPTION (minimal change): PDF Text Extraction -> "line-based" grouping by Y
+  // FIX: PDF Text Extraction -> "line-based" grouping by Y
+  //      + verhindert getrennte Tausender (z.B. "3" "167.50")
   // -----------------------------
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
 
     const rows = new Map(); // yKey -> [{x,str}]
-    const Y_TOL = 2.0;      // tolerance; helps avoid "split lines" from PDF
+    const Y_TOL = 2.0;
     for (const it of content.items){
       const str = String(it.str ?? "").trim();
       if (!str) continue;
@@ -821,16 +822,41 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     const yKeys = Array.from(rows.keys()).sort((a,b) => b - a);
     const lines = [];
 
+    // Heuristik: wenn zwei Text-Items numerisch "zusammenkleben" sollen, kein Leerzeichen einfügen
+    const isDigit = (ch) => ch >= "0" && ch <= "9";
+    const startsNumericGlue = (s) => {
+      const c = s[0];
+      return isDigit(c) || c === "." || c === "," || c === ")" || c === "%";
+    };
+    const endsNumericGlue = (s) => {
+      const c = s[s.length - 1];
+      return isDigit(c) || c === "(" || c === "." || c === ",";
+    };
+
     for (const yKey of yKeys){
       const parts = rows.get(yKey).sort((a,b) => a.x - b.x);
       let line = "";
       let lastX = null;
 
       for (const p of parts){
-        // When columns are far apart, add extra spacing.
-        // This stabilizes table rows and prevents "comma split" issues.
-        if (lastX !== null && (p.x - lastX) > 18) line += "  ";
-        else if (line) line += " ";
+        const gap = (lastX === null) ? 0 : (p.x - lastX);
+
+        // Standard: Spaltensprünge => extra Abstand
+        if (lastX !== null && gap > 18){
+          line += "  ";
+        } else if (line){
+          // FIX: wenn numerische Fragmente vermutlich zusammengehören, KEIN Space
+          const prev = line;
+          const prevLast = prev[prev.length - 1] || "";
+          const nextFirst = p.str[0] || "";
+
+          const glueLikely =
+            endsNumericGlue(prev) &&
+            startsNumericGlue(p.str) &&
+            gap <= 10; // kleine Lücke = sehr oft "zerlegte Zahl"
+
+          if (!glueLikely) line += " ";
+        }
 
         line += p.str;
         lastX = p.x;
@@ -1085,7 +1111,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Finale PDF exportieren (robust gegen tainted canvas)
+  // Finale PDF exportieren
   // -----------------------------
   document.getElementById("exportPdfBtn").addEventListener("click", async () => {
     try{
@@ -1283,14 +1309,12 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         setPill("workerPill", "<b>PDF.js:</b> Worker deaktiviert (Fallback)", "warn");
       }
 
-      // ====== CHANGED: use line-based extraction (prevents "line shifting") ======
       let fullText = "";
       for (let p=1; p<=pdf.numPages; p++){
         const page = await pdf.getPage(p);
         fullText += await extractPageTextByLines(page);
         fullText += "\n";
       }
-      // ========================================================================
 
       fullText = normalizeText(fullText);
       extractedTextEl.value = fullText;
@@ -1342,7 +1366,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Parser (minimal improvements: stable numbers, supports 2-number lines, negatives)
+  // Parser (FIX: join Tausender-Splits pro Zeile)
   // -----------------------------
   function parseInvoiceFromText(text){
     const out = collectFormData();
@@ -1384,7 +1408,22 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     if (departure) out.departure = departure.replace(/\//g,".");
     if (currency) out.currency = currency;
 
-    const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
+    // FIX: Join typische Tausender-Splits: "3 167.50" -> "3167.50"
+    const joinThousandsSplits = (s) => {
+      // nur wenn es wie Tausender aussieht: 1-3 Ziffern + Leerraum + 3 Ziffern (optional Dezimal)
+      // mehrfach ausführen, falls "1 234 567.89"
+      let prev;
+      do{
+        prev = s;
+        s = s.replace(/(\d{1,3})\s+(\d{3}(?:[.,]\d+)?)/g, "$1$2");
+      } while (s !== prev);
+      return s;
+    };
+
+    const lines = t.split("\n")
+      .map(s => joinThousandsSplits(s.trim()))
+      .filter(Boolean);
+
     const items = [];
     const dateRe = /^(\d{2}[.\/]\d{2}[.\/](?:\d{2}|\d{4}))\s+(.*)$/;
 
@@ -1452,12 +1491,11 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         }
       }
 
-      // Case B (common): ... QTY AMOUNT  (unit can be derived)
+      // Case B: ... QTY AMOUNT
       if (nums.length === 2){
         const n1 = toSignedNumber(nums[0]);
         const n2 = toSignedNumber(nums[1]);
 
-        // remove the last two numbers from end
         const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?\s*){2}$/, "").trim();
 
         const qty = (Math.abs(n1) > 0 && Math.abs(n1) < 100000) ? Math.abs(n1) : "";
