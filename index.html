@@ -6,10 +6,11 @@
   <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export + Fixes Logo</title>
 
   <!--
-    WICHTIG (Betriebs-/Security-Umgebung):
-    - KEINE festen CDN <script src=...> mehr.
-    - Bibliotheken werden "on demand" geladen und wir probieren mehrere CDNs.
-    - Wenn alles geblockt ist: PDF-Import per TEXT-Fallback (Copy/Paste aus Edge/Chrome/Adobe PDF-Viewer).
+    Betriebs-/Security-Umgebung:
+    - Keine festen CDN <script src=...>.
+    - Bibliotheken werden on-demand geladen (mehrere CDNs).
+    - Wenn alles blockiert: PDF Import per Text-Fallback (Copy/Paste aus Edge/Adobe/Chrome PDF Viewer).
+    - Finale PDF exportieren: robust gegen "tainted canvas" (Logo wird beim Export ggf. automatisch ersetzt).
   -->
 
   <style>
@@ -49,7 +50,7 @@
     .btn:active{ transform: translateY(1px); }
     .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
 
-    /* WICHTIG: nicht display:none (sonst blocken manche Browser <label for=...>) */
+    /* nicht display:none (sonst blocken manche Browser <label for=...>) */
     input[type="file"]{
       position:absolute;
       left:-9999px;
@@ -301,7 +302,6 @@
       font-weight:800;
     }
 
-    /* ---------- Print CSS ---------- */
     @media print{
       body{ background:#fff; }
       header, .noPrint{ display:none !important; }
@@ -516,11 +516,16 @@ France</textarea>
         <div class="invoiceHeader">
           <div>
             <div class="brandRow">
-              <div class="logoBox" title="Logo (fix)">
-                <img id="logoImg" src="Logo_ibis_RGB.png" alt="Logo ibis"
+              <div class="logoBox" title="Logo (lokal im Repo)">
+                <!-- Logo liegt im gleichen Ordner wie index.html -->
+                <img id="logoImg"
+                     src="Logo_ibis_RGB.png"
+                     alt="Logo ibis"
+                     crossorigin="anonymous"
+                     referrerpolicy="no-referrer"
                      onerror="this.style.display='none';document.getElementById('logoFallback').style.display='block';" />
                 <div id="logoFallback" class="muted" style="display:none;text-align:center;padding:8px;">
-                  Logo fehlt<br><span class="hint">Datei: <span class="mono">Logo_ibis_RGB.png</span></span>
+                  ibis<br><span class="hint">Logo konnte nicht geladen werden</span>
                 </div>
               </div>
 
@@ -606,7 +611,7 @@ France</textarea>
 
       <div class="noPrint" style="margin-top:10px;">
         <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“ (falls Export-Libs im Betrieb blockiert sind, nutze Drucken).
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
         </div>
       </div>
 
@@ -627,7 +632,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
       <div style="height:14px;"></div>
 
-      <!-- Debug: extracted text -->
       <details class="card" style="border-radius:12px;">
         <summary class="hd">
           <strong>Import-Text (Debug) anzeigen</strong>
@@ -637,7 +641,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
           <label>Ausgelesener / eingefügter Text</label>
           <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
           <div class="hint" style="margin-top:8px;">
-            Wenn PDF-Import im Betrieb blockiert ist: Öffne PDF in Edge/Chrome/Adobe → Text markieren → kopieren → „Import per Text (Fallback)“.
+            Wenn PDF-Import im Betrieb blockiert ist: PDF in Edge/Chrome/Adobe öffnen → Text markieren → kopieren → „Import per Text (Fallback)“.
           </div>
         </div>
       </details>
@@ -685,7 +689,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       document.head.appendChild(s);
     });
   }
-
   async function loadAny(candidates){
     for (const url of candidates){
       try{
@@ -728,7 +731,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       const decIsComma = lastComma > lastDot;
       if (decIsComma){
         s = s.replace(/\./g,"").replace(",",".");
-
       } else {
         s = s.replace(/,/g,"");
       }
@@ -769,7 +771,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       .replace(/\n{3,}/g,"\n\n")
       .trim();
   }
-
   function v(id){ return document.getElementById(id).value; }
   function setV(id, val){ document.getElementById(id).value = val; }
   function setText(id, val){
@@ -792,7 +793,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       return false;
     }
 
-    // Worker setzen (wenn möglich)
     const workerUrl = await loadAny(LIBS.pdfjsWorker);
     try{
       if (workerUrl && window.pdfjsLib?.GlobalWorkerOptions){
@@ -812,17 +812,14 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   // Export libs On-Demand Loader
   // -----------------------------
   async function ensureExportLibs(){
-    // html2canvas
     if (!window.html2canvas){
       setPill("exportPill", "<b>Export:</b> html2canvas laden…", "");
       await loadAny(LIBS.html2canvas);
     }
-    // jspdf
     if (!window.jspdf){
       setPill("exportPill", "<b>Export:</b> jsPDF laden…", "");
       await loadAny(LIBS.jspdf);
     }
-
     const ok = !!window.html2canvas && !!window.jspdf?.jsPDF;
     setPill("exportPill", ok ? "<b>Export:</b> bereit" : "<b>Export:</b> blockiert (Drucken nutzen)", ok ? "ok" : "warn");
     return ok;
@@ -905,7 +902,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Recalc totals + VAT breakdown per rate
+  // Recalc totals + VAT breakdown
   // -----------------------------
   function recalc(){
     state.items = state.items.map(it => {
@@ -1032,11 +1029,9 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     setText("p_totalDebit", fmt(totalDebit));
     setText("p_totalCredit", fmt(totalCredit));
     setText("p_balance", fmt(balance));
-
     setText("p_legalFooter", v("legalFooter") || "");
   }
 
-  // keep printable in sync when fields change
   const headerInputs = [
     "sellerName","sellerContact","sellerExtra","sellerAddressBlock",
     "buyerName","buyerAddressBlock","reference",
@@ -1049,33 +1044,63 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Print + PDF Export
+  // Print
   // -----------------------------
   document.getElementById("printBtn").addEventListener("click", () => {
     recalc();
     window.print();
   });
 
+  // -----------------------------
+  // Finale PDF exportieren (robust gegen tainted canvas)
+  // -----------------------------
   document.getElementById("exportPdfBtn").addEventListener("click", async () => {
     try{
       recalc();
 
       const ok = await ensureExportLibs();
       if (!ok){
-        alert(
-          "Finale PDF exportieren ist im Betrieb vermutlich blockiert (CDN-Schutz).\n\n" +
-          "Bitte nutze stattdessen: „Drucken / Als PDF speichern“."
-        );
+        alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“.");
         return;
       }
 
       const paper = document.getElementById("invoicePaper");
 
-      const canvas = await html2canvas(paper, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff"
-      });
+      // Versuch 1: normal (mit Logo)
+      let canvas;
+      try{
+        canvas = await html2canvas(paper, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff"
+        });
+        // Probe: wirft bei tainted
+        canvas.toDataURL("image/png");
+      } catch (e1){
+        console.warn("Export attempt 1 failed (tainted?). Retrying without logo…", e1);
+
+        // Versuch 2: im Clone alle <img> neutralisieren (sicherster Weg)
+        canvas = await html2canvas(paper, {
+          scale: 2,
+          useCORS: false,
+          backgroundColor: "#ffffff",
+          onclone: (doc) => {
+            // alle Bilder raus (damit garantiert nicht tainted)
+            doc.querySelectorAll("#invoicePaper img").forEach(img => img.remove());
+
+            // Logo-Fallback sichtbar machen (damit Rechnung nicht „leer“ wirkt)
+            const fb = doc.getElementById("logoFallback");
+            if (fb){
+              fb.style.display = "block";
+              fb.style.color = "#666";
+              fb.innerHTML = 'ibis<br><span style="font-size:11px;color:#666;">Zurich Messe Airport</span>';
+            }
+          }
+        });
+
+        // Probe: falls trotzdem tainted
+        canvas.toDataURL("image/png");
+      }
 
       const imgData = canvas.toDataURL("image/png");
 
@@ -1104,10 +1129,22 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
       const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g,"_");
       pdf.save(`Finale_Rechnung_${inv}.pdf`);
+      setPill("exportPill", "<b>Export:</b> PDF erstellt ✓", "ok");
 
     } catch (err){
       console.error(err);
-      alert("PDF Export fehlgeschlagen: " + (err?.message || err));
+      const msg = String(err?.message || err);
+      setPill("exportPill", "<b>Export:</b> Fehler", "warn");
+
+      if (msg.toLowerCase().includes("tainted")){
+        alert(
+          "PDF Export blockiert (tainted canvas).\n\n" +
+          "Workaround: Nutze „Drucken / Als PDF speichern“.\n" +
+          "Hinweis: Der Code versucht bereits ohne Bilder zu exportieren; wenn es trotzdem passiert, blockiert die Umgebung Canvas-Export generell."
+        );
+      } else {
+        alert("PDF Export fehlgeschlagen: " + msg);
+      }
     }
   });
 
@@ -1251,7 +1288,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Text-Fallback Import (für Edge/Chrome/Adobe)
+  // Text-Fallback Import
   // -----------------------------
   document.getElementById("manualImportBtn").addEventListener("click", () => {
     const existing = extractedTextEl.value?.trim() ? extractedTextEl.value.trim() : "";
@@ -1278,7 +1315,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Robust parser
+  // Parser
   // -----------------------------
   function parseInvoiceFromText(text){
     const out = collectFormData();
@@ -1305,9 +1342,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i) ||
       pick(/\bDepart(?:ure|ure|ure)?\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i);
 
-    let currency =
-      pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
-
+    let currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
     if (!currency){
       const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
       if (m) currency = m[1];
@@ -1323,7 +1358,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     if (currency) out.currency = currency;
 
     const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
-
     const items = [];
     const dateRe = /^(\d{2}[.\/]\d{2}[.\/](?:\d{2}|\d{4}))\s+(.*)$/;
 
