@@ -5,14 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export + Fixes Logo</title>
 
-  <!--
-    Betriebs-/Security-Umgebung:
-    - Keine festen CDN <script src=...>.
-    - Bibliotheken werden on-demand geladen (mehrere CDNs).
-    - Wenn alles blockiert: PDF Import per Text-Fallback (Copy/Paste aus Edge/Adobe/Chrome PDF Viewer).
-    - Finale PDF exportieren: robust gegen "tainted canvas" (Logo wird beim Export ggf. automatisch ersetzt).
-  -->
-
   <style>
     :root{
       --ink:#111;
@@ -50,7 +42,6 @@
     .btn:active{ transform: translateY(1px); }
     .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
 
-    /* nicht display:none (sonst blocken manche Browser <label for=...>) */
     input[type="file"]{
       position:absolute;
       left:-9999px;
@@ -167,7 +158,6 @@
     .statusPill.warn{ color:var(--warn); border-color:#ffedd5; }
     .statusPill b{ color:inherit; }
 
-    /* ---------- Printable invoice area ---------- */
     .invoicePaper{
       background:#fff;
       border:1px solid var(--line);
@@ -511,13 +501,11 @@ France</textarea>
 
       <div style="height:18px;"></div>
 
-      <!-- Printable invoice -->
       <div class="invoicePaper" id="invoicePaper">
         <div class="invoiceHeader">
           <div>
             <div class="brandRow">
               <div class="logoBox" title="Logo (lokal im Repo)">
-                <!-- Logo liegt im gleichen Ordner wie index.html -->
                 <img id="logoImg"
                      src="Logo_ibis_RGB.png"
                      alt="Logo ibis"
@@ -721,6 +709,8 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
     let s = String(val).trim();
     if (!s) return 0;
+
+    // Spaces + thousand separators
     s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
 
     const hasDot = s.includes(".");
@@ -806,6 +796,49 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       setPill("workerPill", "<b>PDF.js:</b> geladen (Fallback)", "warn");
     }
     return true;
+  }
+
+  // -----------------------------
+  // BEST OPTION (minimal change): PDF Text Extraction -> "line-based" grouping by Y
+  // -----------------------------
+  async function extractPageTextByLines(page){
+    const content = await page.getTextContent({ disableCombineTextItems: false });
+
+    const rows = new Map(); // yKey -> [{x,str}]
+    const Y_TOL = 2.0;      // tolerance; helps avoid "split lines" from PDF
+    for (const it of content.items){
+      const str = String(it.str ?? "").trim();
+      if (!str) continue;
+      const tx = it.transform;
+      const x = tx[4];
+      const y = tx[5];
+
+      const yKey = Math.round(y / Y_TOL) * Y_TOL;
+      if (!rows.has(yKey)) rows.set(yKey, []);
+      rows.get(yKey).push({ x, str });
+    }
+
+    const yKeys = Array.from(rows.keys()).sort((a,b) => b - a);
+    const lines = [];
+
+    for (const yKey of yKeys){
+      const parts = rows.get(yKey).sort((a,b) => a.x - b.x);
+      let line = "";
+      let lastX = null;
+
+      for (const p of parts){
+        // When columns are far apart, add extra spacing.
+        // This stabilizes table rows and prevents "comma split" issues.
+        if (lastX !== null && (p.x - lastX) > 18) line += "  ";
+        else if (line) line += " ";
+
+        line += p.str;
+        lastX = p.x;
+      }
+
+      lines.push(line.trim());
+    }
+    return lines.join("\n");
   }
 
   // -----------------------------
@@ -1066,7 +1099,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
       const paper = document.getElementById("invoicePaper");
 
-      // Versuch 1: normal (mit Logo)
       let canvas;
       try{
         canvas = await html2canvas(paper, {
@@ -1074,21 +1106,16 @@ Weitere Informationen / rechtliche Angaben …</textarea>
           useCORS: true,
           backgroundColor: "#ffffff"
         });
-        // Probe: wirft bei tainted
         canvas.toDataURL("image/png");
       } catch (e1){
         console.warn("Export attempt 1 failed (tainted?). Retrying without logo…", e1);
 
-        // Versuch 2: im Clone alle <img> neutralisieren (sicherster Weg)
         canvas = await html2canvas(paper, {
           scale: 2,
           useCORS: false,
           backgroundColor: "#ffffff",
           onclone: (doc) => {
-            // alle Bilder raus (damit garantiert nicht tainted)
             doc.querySelectorAll("#invoicePaper img").forEach(img => img.remove());
-
-            // Logo-Fallback sichtbar machen (damit Rechnung nicht „leer“ wirkt)
             const fb = doc.getElementById("logoFallback");
             if (fb){
               fb.style.display = "block";
@@ -1098,7 +1125,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
           }
         });
 
-        // Probe: falls trotzdem tainted
         canvas.toDataURL("image/png");
       }
 
@@ -1257,13 +1283,14 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         setPill("workerPill", "<b>PDF.js:</b> Worker deaktiviert (Fallback)", "warn");
       }
 
+      // ====== CHANGED: use line-based extraction (prevents "line shifting") ======
       let fullText = "";
       for (let p=1; p<=pdf.numPages; p++){
         const page = await pdf.getPage(p);
-        const content = await page.getTextContent();
-        const strings = content.items.map(it => it.str);
-        fullText += strings.join("\n") + "\n";
+        fullText += await extractPageTextByLines(page);
+        fullText += "\n";
       }
+      // ========================================================================
 
       fullText = normalizeText(fullText);
       extractedTextEl.value = fullText;
@@ -1315,7 +1342,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Parser
+  // Parser (minimal improvements: stable numbers, supports 2-number lines, negatives)
   // -----------------------------
   function parseInvoiceFromText(text){
     const out = collectFormData();
@@ -1365,10 +1392,21 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
     const isCityTaxDesc = (desc) => /(city\s*tax|tourist\s*tax|taxe\s*de\s*s[eé]jour|kurtaxe)/i.test(desc);
 
+    // numbers incl. thousands separators, negative, parentheses
+    const NUM_RE = /(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)/g;
+    function toSignedNumber(raw){
+      let s = String(raw ?? "").trim();
+      if (!s) return 0;
+      const isParens = /^\(.*\)$/.test(s);
+      s = s.replace(/[()]/g, "");
+      let n = toNumber(s);
+      if (isParens) n = -Math.abs(n);
+      return n;
+    }
+
     function pushItem({date, desc, qty, unit, debit, credit}){
       const city = isCityTaxDesc(desc);
       const creditLike = isCreditDesc(desc);
-      const amount = toNumber(debit || credit || 0);
 
       items.push({
         date: date ? normDate(date) : "",
@@ -1376,7 +1414,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         qty: (qty === undefined ? "" : qty),
         unit: (unit === undefined ? "" : unit),
         debit: creditLike ? "" : (debit === "" ? "" : toNumber(debit)),
-        credit: creditLike ? (credit === "" ? amount : toNumber(credit)) : (credit === "" ? "" : toNumber(credit)),
+        credit: creditLike ? (credit === "" ? toNumber(credit) : toNumber(credit)) : (credit === "" ? "" : toNumber(credit)),
         vatRate: city ? 0.0 : defaultRate,
         vatEnabled: city ? false : true
       });
@@ -1389,58 +1427,95 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       const date = m[1];
       const rest = m[2];
 
-      const nums = rest.match(/([0-9]+(?:[.,][0-9]+)?)/g) || [];
+      const nums = rest.match(NUM_RE) || [];
+
+      // Case A: ... QTY UNIT AMOUNT
       if (nums.length >= 3){
-        const last3 = nums.slice(-3).map(toNumber);
+        const last3 = nums.slice(-3).map(toSignedNumber);
         const qty = last3[0];
         const unit = last3[1];
         const amount = last3[2];
 
-        if (qty > 0 && qty < 10000 && unit > 0 && amount !== 0){
-          const desc = rest.replace(/([0-9]+(?:[.,][0-9]+)?\s*){3}$/, "").trim();
+        if (Math.abs(qty) > 0 && Math.abs(qty) < 100000 && Math.abs(unit) > 0 && amount !== 0){
+          const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?\s*){3}$/, "").trim();
           const creditLike = isCreditDesc(desc);
+          const negative = amount < 0;
+
           pushItem({
             date, desc,
-            qty,
-            unit,
-            debit: creditLike ? "" : amount,
-            credit: creditLike ? amount : ""
+            qty: Math.abs(qty),
+            unit: Math.abs(unit),
+            debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+            credit: (creditLike || negative) ? Math.abs(amount) : ""
           });
           continue;
         }
       }
 
-      const lastNum = rest.match(/([0-9]+(?:[.,][0-9]+)?)\s*$/);
+      // Case B (common): ... QTY AMOUNT  (unit can be derived)
+      if (nums.length === 2){
+        const n1 = toSignedNumber(nums[0]);
+        const n2 = toSignedNumber(nums[1]);
+
+        // remove the last two numbers from end
+        const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?\s*){2}$/, "").trim();
+
+        const qty = (Math.abs(n1) > 0 && Math.abs(n1) < 100000) ? Math.abs(n1) : "";
+        const amount = n2;
+        let unit = "";
+        if (qty && amount !== 0) unit = round2(Math.abs(amount) / qty);
+
+        const creditLike = isCreditDesc(desc);
+        const negative = amount < 0;
+
+        pushItem({
+          date, desc,
+          qty: qty || "",
+          unit: unit || "",
+          debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+          credit: (creditLike || negative) ? Math.abs(amount) : ""
+        });
+        continue;
+      }
+
+      // Case C: last numeric amount only
+      const lastNum = rest.match(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/);
       if (lastNum){
-        const amount = toNumber(lastNum[1]);
+        const amount = toSignedNumber(lastNum[1]);
         if (amount !== 0){
-          const desc = rest.replace(/([0-9]+(?:[.,][0-9]+)?)\s*$/, "").trim();
+          const desc = rest.replace(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/, "").trim();
           const creditLike = isCreditDesc(desc);
+          const negative = amount < 0;
+
           pushItem({
             date, desc,
             qty: "",
             unit: "",
-            debit: creditLike ? "" : amount,
-            credit: creditLike ? amount : ""
+            debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+            credit: (creditLike || negative) ? Math.abs(amount) : ""
           });
           continue;
         }
       }
 
-      const m2 = (lines[i+1] || "").match(/^(\d+(?:[.,]\d+)?)\s*[xX]\s*([0-9]+(?:[.,][0-9]+)?)$/);
-      const m3 = (lines[i+2] || "").match(/([0-9]+(?:[.,][0-9]+)?)\s*$/);
+      // Case D: next lines "2 x 135.00" + amount
+      const m2 = (lines[i+1] || "").match(/^(\d+(?:[.,]\d+)?)\s*[xX]\s*(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)$/);
+      const m3 = (lines[i+2] || "").match(/(\(?-?\d{1,3}(?:[ '\u00A0’]?\d{3})*(?:[.,]\d+)?\)?)\s*$/);
       if (m2 && m3){
         const qty = toNumber(m2[1]);
-        const unit = toNumber(m2[2]);
-        const amount = toNumber(m3[1]);
+        const unit = toSignedNumber(m2[2]);
+        const amount = toSignedNumber(m3[1]);
+
         const desc = rest.trim();
         const creditLike = isCreditDesc(desc);
+        const negative = amount < 0;
+
         pushItem({
           date, desc,
-          qty,
-          unit,
-          debit: creditLike ? "" : amount,
-          credit: creditLike ? amount : ""
+          qty: Math.abs(qty),
+          unit: Math.abs(unit),
+          debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+          credit: (creditLike || negative) ? Math.abs(amount) : ""
         });
         i += 2;
         continue;
