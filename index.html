@@ -180,7 +180,7 @@
 
     .brandRow{
       display:grid;
-      grid-template-columns: 180px 1fr;
+      grid-template-columns: 240px 1fr; /* LOGO-SPALTE BREITER (war 180px) */
       gap:14px;
       align-items:start;
     }
@@ -188,9 +188,10 @@
       .brandRow{ grid-template-columns: 1fr; }
     }
 
+    /* LOGO GRÖSSER */
     .logoBox{
-      width:180px;
-      height:80px;
+      width:240px;     /* war 180px */
+      height:120px;    /* war 80px */
       border:1px solid #eee;
       border-radius:12px;
       display:flex;
@@ -200,6 +201,7 @@
       background:#fff;
     }
     .logoBox img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+
     .sellerHead{
       border:1px solid #f0f0f0;
       border-radius:12px;
@@ -605,13 +607,12 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Fußzeile / Bankdaten / Rechtstext (wird gedruckt)</strong>
-          <span class="hint">Hier „Bankdaten“ + „Essendi Switzerland …“ eintragen.</span>
+          <span class="hint">FIX: Bankdaten sind fest im Code hinterlegt (gelber Bereich).</span>
         </div>
         <div class="bd">
-          <label>Footer-Text</label>
-          <textarea id="legalFooter" class="field">Essendi Switzerland SA (ehem. AccorInvest)
-[Bank / IBAN / BIC / Konto / Zahlungsziel etc. hier einfügen]
-Weitere Informationen / rechtliche Angaben …</textarea>
+          <label>Footer-Text (fix)</label>
+          <!-- FIX: readonly, wird aus FIXED_LEGAL_FOOTER befüllt -->
+          <textarea id="legalFooter" class="field" readonly></textarea>
         </div>
       </div>
 
@@ -636,6 +637,16 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 </main>
 
 <script>
+  // -----------------------------
+  // FIX: Footer/Bankdaten (gelb markierter Bereich) FEST im Code
+  // -----------------------------
+  const FIXED_LEGAL_FOOTER = `Essendi Switzerland SA (ehem. AccorInvest)
+UBS SA
+Konto-Nr: 243-442422.05R
+IBAN: CH24 0024 3243 4424 2205 R
+BIC: UBSWCHZH80A
+USt-IdNr. CHE-106.003.397 MWST`;
+
   // -----------------------------
   // CDN Kandidaten (mehrere Quellen)
   // -----------------------------
@@ -793,9 +804,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
   // -----------------------------
   // FIX: Header-Spalten basierte Tabellen-Zeilen
-  // - findet Header: Date VAT Description Qty Debit Credit
-  // - nimmt X-Positionen als Spaltenanker
-  // - erzeugt Zeilen: Date | VAT | Desc | Qty | Debit | Credit
   // -----------------------------
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
@@ -1156,15 +1164,17 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     setText("p_totalDebit", fmt(totalDebit));
     setText("p_totalCredit", fmt(totalCredit));
     setText("p_balance", fmt(balance));
-    setText("p_legalFooter", v("legalFooter") || "");
+
+    // FIX: Gelb markierte Fußzeile IMMER aus Konstante
+    setText("p_legalFooter", FIXED_LEGAL_FOOTER);
   }
 
   const headerInputs = [
     "sellerName","sellerContact","sellerExtra","sellerAddressBlock",
     "buyerName","buyerAddressBlock","reference",
     "invoiceNo","invoiceDate","currency",
-    "arrival","departure","roomReservation",
-    "legalFooter"
+    "arrival","departure","roomReservation"
+    // legalFooter raus, da fix
   ];
   headerInputs.forEach(id => {
     document.getElementById(id).addEventListener("input", recalc);
@@ -1308,7 +1318,10 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       departure: v("departure"),
       roomReservation: v("roomReservation"),
 
-      legalFooter: v("legalFooter"),
+      // FIX: legalFooter bleibt im Export (damit JSON komplett ist),
+      // aber immer aus Konstante.
+      legalFooter: FIXED_LEGAL_FOOTER,
+
       items: state.items
     };
   }
@@ -1332,7 +1345,8 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     setV("departure", d.departure ?? "");
     setV("roomReservation", d.roomReservation ?? "");
 
-    setV("legalFooter", d.legalFooter ?? "");
+    // FIX: immer Konstante (egal was im JSON steht)
+    setV("legalFooter", FIXED_LEGAL_FOOTER);
 
     state.items = Array.isArray(d.items) ? d.items : [];
     renderItems();
@@ -1479,8 +1493,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     }
 
     // Adressen aus deinem Text (fix)
-    // Buyer: Block von Anfang bis "INVOICE"
-    // Seller: ab "ibis Zurich Messe Airport" bis vor Header "Date VAT Description"
     (function parseAddressBlocks(){
       const lines = t.split("\n").map(s=>s.trim()).filter(Boolean);
 
@@ -1504,9 +1516,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
           out.sellerName = sellerLines[0];
           let addr = sellerLines.slice(1).join("\n").trim();
 
-          // Normalize CH-8050 -> CH-8050 ZURICH wenn fehlt (optional)
           if (/CH-8050\s*$/i.test(addr)) addr += "\nZURICH";
-          // wenn Switzerland fehlt, hinzufügen (bei deinem Text fehlt es im Sellerblock)
           if (!/switzerland/i.test(addr)) addr += "\nSwitzerland";
 
           out.sellerAddressBlock = addr.trim();
@@ -1575,9 +1585,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
     // ---------- Items: B) Dein Fallback-Text (ohne Pipes) ----------
     if (items.length === 0){
-      // typische Zeile:
-      // 02.01.26 Deposit Transfered 2 3,167.50
-      // 05.01.26 Manual Accomodation 1-110.00  (qty + amount klebt!)
       const lineRe = /^(\d{2}\.\d{2}\.\d{2})\s+(.*?)\s+(\d{1,6})\s*([\-]?\d[\d.,']*)\s*$/;
 
       for (const ln of lines){
@@ -1591,10 +1598,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
         const creditLike = isCreditDesc(desc);
         const city = isCityTaxDesc(desc);
-
-        // Heuristik für ibis:
-        // Deposit Transfered -> Credit
-        // Negative amount -> Credit
         const negative = amount < 0;
 
         items.push({
@@ -1625,6 +1628,9 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("importPill", "<b>Import:</b> bereit", "");
     setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
+
+    // FIX: Footer-Feld mit Konstante füllen (readonly)
+    setV("legalFooter", FIXED_LEGAL_FOOTER);
 
     // Startzustand leer
     state.items = [];
