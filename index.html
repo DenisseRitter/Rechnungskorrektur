@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – PDF Import (Spalten-Fix + Adressen) + PDF Export</title>
+  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export + Fixes (Header-Spalten + Adressen)</title>
 
   <style>
     :root{
@@ -305,7 +305,7 @@
 
 <body>
 <header>
-  <h1>Rechnungskorrektur: PDF Import (Spalten-Fix + Adressen) • MwSt pro Position • Export</h1>
+  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (Header-Spalten + Adressen) • Druck/PDF Export</h1>
 
   <div class="toolbar">
     <label class="btn primary" for="pdfFile">PDF importieren</label>
@@ -329,8 +329,8 @@
 <main>
   <section class="card">
     <div class="hd">
-      <strong>Editor</strong>
-      <span class="hint">Fix gegen „Verrutschen“: Tabellen-Zeilen werden direkt aus PDF-Spalten (X-Positionen) gelesen. Adressen werden ebenfalls aus dem Kopfbereich erkannt.</span>
+      <strong>Editor (alles anpassbar)</strong>
+      <span class="hint">MwSt pro Zeile wählbar. PDF-Import nutzt Header-Spalten (X-Positionen) + Adress-Erkennung.</span>
     </div>
 
     <div class="bd">
@@ -367,7 +367,7 @@ Switzerland</textarea>
         </div>
         <div>
           <label>Referenz / Gastname</label>
-          <input id="reference" class="field" value="Beytours 12019-1338" />
+          <input id="reference" class="field" value="" />
         </div>
       </div>
 
@@ -375,10 +375,7 @@ Switzerland</textarea>
 
       <div>
         <label>Adresse Kunde (ein Feld)</label>
-        <textarea id="buyerAddressBlock" class="field">DMC - Incoming France
-35 rue d'Hauteville
-75010 Paris
-France</textarea>
+        <textarea id="buyerAddressBlock" class="field"></textarea>
       </div>
 
       <div style="height:14px;"></div>
@@ -386,11 +383,11 @@ France</textarea>
       <div class="grid3">
         <div>
           <label>Invoice No.</label>
-          <input id="invoiceNo" class="field" value="39498" />
+          <input id="invoiceNo" class="field" value="" />
         </div>
         <div>
           <label>Rechnungsdatum</label>
-          <input id="invoiceDate" class="field" value="05.01.2026" />
+          <input id="invoiceDate" class="field" value="" />
         </div>
         <div>
           <label>Währung</label>
@@ -403,15 +400,15 @@ France</textarea>
       <div class="grid3">
         <div>
           <label>Anreise</label>
-          <input id="arrival" class="field" value="02.01.2026" />
+          <input id="arrival" class="field" value="" />
         </div>
         <div>
           <label>Abreise</label>
-          <input id="departure" class="field" value="05.01.2026" />
+          <input id="departure" class="field" value="" />
         </div>
         <div>
           <label>Zimmer / Reservation</label>
-          <input id="roomReservation" class="field" value="Room 9295 | Reservation 594489457" />
+          <input id="roomReservation" class="field" value="" />
         </div>
       </div>
 
@@ -420,7 +417,7 @@ France</textarea>
         <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
         <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
         <span class="hint" id="importHint">
-          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ (PDF öffnen → Text markieren → kopieren → einfügen).
+          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen (PDF öffnen → Text markieren → kopieren → einfügen).
         </span>
       </div>
 
@@ -599,7 +596,7 @@ France</textarea>
 
       <div class="noPrint" style="margin-top:10px;">
         <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export blockiert ist → Drucken nutzen.
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
         </div>
       </div>
 
@@ -608,7 +605,7 @@ France</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Fußzeile / Bankdaten / Rechtstext (wird gedruckt)</strong>
-          <span class="hint">Hier Bankdaten / Zahlungsziel etc. eintragen.</span>
+          <span class="hint">Hier „Bankdaten“ + „Essendi Switzerland …“ eintragen.</span>
         </div>
         <div class="bd">
           <label>Footer-Text</label>
@@ -629,7 +626,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
           <label>Ausgelesener / eingefügter Text</label>
           <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
           <div class="hint" style="margin-top:8px;">
-            Wenn PDF-Import blockiert ist: PDF öffnen → Text markieren → kopieren → „Import per Text (Fallback)“.
+            Wenn PDF-Import im Betrieb blockiert ist: PDF in Edge/Chrome/Adobe öffnen → Text markieren → kopieren → „Import per Text (Fallback)“.
           </div>
         </div>
       </details>
@@ -640,7 +637,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
 <script>
   // -----------------------------
-  // CDN Kandidaten
+  // CDN Kandidaten (mehrere Quellen)
   // -----------------------------
   const LIBS = {
     pdfjs: [
@@ -679,8 +676,12 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   }
   async function loadAny(candidates){
     for (const url of candidates){
-      try{ await loadScriptOnce(url); return url; }
-      catch (e){ console.warn(e); }
+      try{
+        await loadScriptOnce(url);
+        return url;
+      } catch (e){
+        console.warn(e);
+      }
     }
     return "";
   }
@@ -689,11 +690,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   // State
   // -----------------------------
   const state = {
-    items: [
-      { date: "02.01.26", desc: "Accommodation", qty: 2, unit: 135.00, debit: "", credit: "", vatRate: 3.8, vatEnabled: true },
-      { date: "02.01.26", desc: "City Tax", qty: 46, unit: 3.50, debit: "", credit: "", vatRate: 0.0, vatEnabled: false },
-      { date: "02.01.26", desc: "Deposit Transfered", qty: 1, unit: 2467.00, debit: "", credit: 2467.00, vatRate: 0.0, vatEnabled: false },
-    ]
+    items: []
   };
 
   // -----------------------------
@@ -706,8 +703,8 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     let s = String(val).trim();
     if (!s) return 0;
 
-    // remove spaces/thousand separators
-    s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"").replace(/\u00A0/g,"");
+    // Spaces + thousand separators
+    s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
 
     const hasDot = s.includes(".");
     const hasComma = s.includes(",");
@@ -765,12 +762,8 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     el.textContent = val;
   }
 
-  function normDate(d){
-    return String(d||"").replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
-  }
-
   // -----------------------------
-  // PDF.js loader
+  // PDF.js On-Demand Loader
   // -----------------------------
   async function ensurePdfJsReady(){
     if (window.pdfjsLib) return true;
@@ -799,7 +792,151 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   }
 
   // -----------------------------
-  // Export libs
+  // FIX: Header-Spalten basierte Tabellen-Zeilen
+  // - findet Header: Date VAT Description Qty Debit Credit
+  // - nimmt X-Positionen als Spaltenanker
+  // - erzeugt Zeilen: Date | VAT | Desc | Qty | Debit | Credit
+  // -----------------------------
+  async function extractPageTextByLines(page){
+    const content = await page.getTextContent({ disableCombineTextItems: false });
+
+    const items = [];
+    const Y_TOL = 1.6;
+
+    for (const it of content.items){
+      const str = String(it.str ?? "").replace(/\s+/g, " ").trim();
+      if (!str) continue;
+      const tx = it.transform;
+      const x = tx[4];
+      const y = tx[5];
+      const yKey = Math.round(y / Y_TOL) * Y_TOL;
+      items.push({ x, y, yKey, str });
+    }
+
+    const rows = new Map();
+    for (const it of items){
+      if (!rows.has(it.yKey)) rows.set(it.yKey, []);
+      rows.get(it.yKey).push(it);
+    }
+
+    const yKeys = Array.from(rows.keys()).sort((a,b) => b - a);
+
+    const rowText = (yKey) =>
+      rows.get(yKey).slice().sort((a,b)=>a.x-b.x).map(o=>o.str).join(" ").trim();
+
+    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9%]+/g," ").replace(/\s+/g," ").trim();
+
+    let headerY = null;
+    for (const yKey of yKeys){
+      const t = norm(rowText(yKey));
+      if (
+        t.includes("date") &&
+        t.includes("description") &&
+        (t.includes("qty") || t.includes("qty.")) &&
+        t.includes("debit") &&
+        t.includes("credit")
+      ){
+        headerY = yKey;
+        break;
+      }
+    }
+
+    // Fallback: wenn Header nicht gefunden, simpel nach Y joinen (ohne Pipe)
+    if (headerY === null){
+      const out = [];
+      for (const yKey of yKeys){
+        const line = rowText(yKey);
+        if (line) out.push(line);
+      }
+      return out.join("\n");
+    }
+
+    const headerItems = rows.get(headerY).slice().sort((a,b)=>a.x-b.x);
+
+    function findX(wordRe){
+      const hit = headerItems.find(o => wordRe.test(o.str));
+      return hit ? hit.x : null;
+    }
+
+    const xDate   = findX(/^Date$/i) ?? 0;
+    const xVAT    = findX(/^VAT$/i) ?? (xDate + 40);
+    const xDesc   = findX(/^Description$/i) ?? (xVAT + 40);
+    const xQty    = findX(/^Qty\.?$/i) ?? (xDesc + 220);
+    const xDebit  = findX(/^Debit$/i) ?? (xQty + 60);
+    const xCredit = findX(/^Credit$/i) ?? (xDebit + 80);
+
+    const bounds = [
+      { key:"date",   left:-Infinity,            right:(xVAT + xDate)/2 },
+      { key:"vat",    left:(xVAT + xDate)/2,     right:(xDesc + xVAT)/2 },
+      { key:"desc",   left:(xDesc + xVAT)/2,     right:(xQty + xDesc)/2 },
+      { key:"qty",    left:(xQty + xDesc)/2,     right:(xDebit + xQty)/2 },
+      { key:"debit",  left:(xDebit + xQty)/2,    right:(xCredit + xDebit)/2 },
+      { key:"credit", left:(xCredit + xDebit)/2, right:Infinity },
+    ];
+
+    function bucketKey(x){
+      return bounds.find(b => x >= b.left && x < b.right)?.key || "desc";
+    }
+
+    const GLUE_GAP = 10;
+    function joinParts(parts){
+      parts.sort((a,b)=>a.x-b.x);
+      let out = "";
+      let lastX = null;
+
+      const isDigit = (c) => c >= "0" && c <= "9";
+      const startsNum = (s) => isDigit((s[0]||"")) || s[0] === "." || s[0] === "," || s[0] === ")" || s[0] === "%";
+      const endsNum = (s) => {
+        const c = s[s.length-1] || "";
+        return isDigit(c) || c === "." || c === "," || c === "(";
+      };
+
+      for (const p of parts){
+        if (!out){
+          out = p.str;
+          lastX = p.x;
+          continue;
+        }
+        const gap = p.x - lastX;
+        const glueLikely = gap <= GLUE_GAP && endsNum(out) && startsNum(p.str);
+        out += glueLikely ? "" : " ";
+        out += p.str;
+        lastX = p.x;
+      }
+      return out.trim();
+    }
+
+    const outLines = [];
+
+    for (const yKey of yKeys){
+      if (yKey >= headerY) continue; // nur unter Header
+
+      const row = rows.get(yKey).slice();
+      const buckets = { date:[], vat:[], desc:[], qty:[], debit:[], credit:[] };
+
+      for (const it of row){
+        const k = bucketKey(it.x);
+        buckets[k].push(it);
+      }
+
+      const date   = joinParts(buckets.date);
+      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
+
+      const vat    = joinParts(buckets.vat);
+      const desc   = joinParts(buckets.desc);
+      const qty    = joinParts(buckets.qty);
+      const debit  = joinParts(buckets.debit);
+      const credit = joinParts(buckets.credit);
+
+      const line = [date, vat, desc, qty, debit, credit].join(" | ").trim();
+      if (line) outLines.push(line);
+    }
+
+    return outLines.join("\n");
+  }
+
+  // -----------------------------
+  // Export libs On-Demand Loader
   // -----------------------------
   async function ensureExportLibs(){
     if (!window.html2canvas){
@@ -813,313 +950,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     const ok = !!window.html2canvas && !!window.jspdf?.jsPDF;
     setPill("exportPill", ok ? "<b>Export:</b> bereit" : "<b>Export:</b> blockiert (Drucken nutzen)", ok ? "ok" : "warn");
     return ok;
-  }
-
-  // -----------------------------
-  // PDF -> Rows (Y grouping) with fragments (x,str)
-  // -----------------------------
-  async function pageToRows(page){
-    const content = await page.getTextContent({ disableCombineTextItems: false });
-    const rows = new Map();
-    const Y_TOL = 2.0;
-
-    for (const it of content.items){
-      const str = String(it.str ?? "").replace(/\s+/g," ").trim();
-      if (!str) continue;
-      const tx = it.transform;
-      const x = tx[4];
-      const y = tx[5];
-      const yKey = Math.round(y / Y_TOL) * Y_TOL;
-
-      if (!rows.has(yKey)) rows.set(yKey, []);
-      rows.get(yKey).push({ x, str });
-    }
-
-    const yKeys = Array.from(rows.keys()).sort((a,b)=> b-a);
-    return yKeys.map(y => ({
-      y,
-      parts: rows.get(y).sort((a,b)=> a.x-b.x)
-    }));
-  }
-
-  // join a row into plain text (good for header/address)
-  function rowToText(parts){
-    let out = "";
-    let lastX = null;
-    for (const p of parts){
-      const gap = lastX === null ? 0 : (p.x - lastX);
-      out += out ? (gap > 18 ? "  " : " ") : "";
-      out += p.str;
-      lastX = p.x;
-    }
-    return out.trim();
-  }
-
-  // numeric fragment glue: if both are numeric-ish, concatenate (e.g. "3" + ",167.50")
-  function glueIfNumeric(a, b){
-    const A = String(a||"").trim();
-    const B = String(b||"").trim();
-    if (!A) return B;
-    if (!B) return A;
-    const numish = (s)=> /^[\(\-]?\d[\d.,']*\)?$/.test(s);
-    if (numish(A) && numish(B)) return A + B;
-    return A + " " + B;
-  }
-
-  // -----------------------------
-  // Detect table header columns dynamically (Date / VAT / Description / Qty / Debit / Credit)
-  // and parse the table rows by X ranges (NO "verrutschen")
-  // -----------------------------
-  function findTableHeaderAndBounds(allRows){
-    // Find row containing the table header
-    // Typical: "Date  VAT  Description  Qty.  Debit CHF  Credit CHF"
-    for (const r of allRows){
-      const t = rowToText(r.parts).toLowerCase();
-      if (t.includes("date") && t.includes("description") && (t.includes("debit") || t.includes("debit chf")) && (t.includes("credit") || t.includes("credit chf"))){
-        // Collect x positions for each header token
-        const getX = (regexList) => {
-          let best = null;
-          for (const p of r.parts){
-            const s = p.str.toLowerCase();
-            for (const re of regexList){
-              if (re.test(s)){
-                best = (best === null) ? p.x : Math.min(best, p.x);
-              }
-            }
-          }
-          return best;
-        };
-
-        const xDate = getX([/^date$/i, /^date\b/i]);
-        const xVAT  = getX([/^vat$/i, /^vat\b/i]);
-        const xDesc = getX([/^description$/i, /^description\b/i]);
-        const xQty  = getX([/^qty/i, /^qty\./i]);
-        const xDebit = getX([/^debit/i]);
-        const xCredit = getX([/^credit/i]);
-
-        // If something missing, still proceed with available ones
-        const xs = [
-          {k:"date", x:xDate},
-          {k:"vat", x:xVAT},
-          {k:"desc", x:xDesc},
-          {k:"qty", x:xQty},
-          {k:"debit", x:xDebit},
-          {k:"credit", x:xCredit},
-        ].filter(o => typeof o.x === "number" && isFinite(o.x)).sort((a,b)=>a.x-b.x);
-
-        if (xs.length < 4) continue;
-
-        // build bounds midpoints between x starts
-        const bounds = [];
-        for (let i=0;i<xs.length;i++){
-          const cur = xs[i];
-          const next = xs[i+1];
-          const start = cur.x - 1;
-          const end = next ? (cur.x + next.x)/2 : 1e9;
-          bounds.push({ k: cur.k, start, end });
-        }
-        return { headerY: r.y, bounds };
-      }
-    }
-    return null;
-  }
-
-  function parseMoney(str){
-    let s = String(str||"").trim();
-    if (!s) return "";
-    const isParens = /^\(.*\)$/.test(s);
-    s = s.replace(/[()]/g,"").replace(/[^\d,.\-’'\u00A0 ]/g,"");
-    const n = toNumber(s);
-    if (!isFinite(n) || n === 0) return "";
-    return isParens ? -Math.abs(n) : n;
-  }
-
-  function parseQty(str){
-    const s = String(str||"").trim();
-    if (!s) return "";
-    if (/^\d{1,6}$/.test(s)) return toNumber(s);
-    return "";
-  }
-
-  function isCreditDesc(desc){
-    return /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
-  }
-  function isCityTaxDesc(desc){
-    return /(city\s*tax|tourist\s*tax|taxe\s*de\s*s[eé]jour|kurtaxe)/i.test(desc);
-  }
-
-  function parseIbisTableFromRows(allRows, defaultVatRate){
-    const hdr = findTableHeaderAndBounds(allRows);
-    if (!hdr) return [];
-
-    const dateStartRe = /^(\d{2}[.\/]\d{2}[.\/](?:\d{2}|\d{4}))$/;
-
-    const items = [];
-    let inTable = false;
-
-    for (const r of allRows){
-      if (!inTable){
-        if (r.y === hdr.headerY) inTable = true;
-        continue;
-      }
-
-      // Stop conditions: next section header "Date Deposit Invoice No." or "VAT Breakdown" etc.
-      const rowText = rowToText(r.parts).toLowerCase();
-      if (rowText.includes("vat breakdown") || rowText.includes("deposit invoice") || rowText.includes("balance") || rowText.includes("total chf")){
-        break;
-      }
-
-      // Split row into columns by bounds using X positions
-      const col = { date:"", vat:"", desc:"", qty:"", debit:"", credit:"" };
-
-      // assign fragments to bucket by x
-      for (const p of r.parts){
-        const b = hdr.bounds.find(bb => p.x >= bb.start && p.x < bb.end);
-        if (!b) continue;
-        const key = b.k;
-        // glue inside same column (important for "3" + ",167.50")
-        col[key] = col[key] ? glueIfNumeric(col[key], p.str) : p.str;
-      }
-
-      const date = String(col.date||"").trim();
-      if (!dateStartRe.test(date)) continue; // only real item rows
-
-      let desc = String(col.desc||"").trim();
-      let qty = parseQty(col.qty);
-      let debit = parseMoney(col.debit);
-      let credit = parseMoney(col.credit);
-
-      // If debit empty but credit exists -> ok
-      // If debit negative -> move to credit (common for adjustments)
-      if (debit !== "" && Number(debit) < 0){
-        credit = Math.abs(Number(debit));
-        debit = "";
-      }
-
-      // If description empty but VAT bucket accidentally holds it
-      if (!desc && col.vat && /[A-Za-z]/.test(col.vat)) desc = String(col.vat).trim();
-
-      const creditLike = isCreditDesc(desc);
-      const city = isCityTaxDesc(desc);
-
-      // If it's a deposit line, prefer credit column; if only debit got filled, treat as credit
-      if (creditLike){
-        if (credit === "" && debit !== "") { credit = Math.abs(Number(debit)); debit = ""; }
-      }
-
-      // unit: derive if qty & (debit or credit) exist and unit blank
-      let unit = "";
-      const amount = (debit !== "" ? Math.abs(Number(debit)) : (credit !== "" ? Math.abs(Number(credit)) : 0));
-      if (qty && amount) unit = round2(amount / qty);
-
-      items.push({
-        date: normDate(date),
-        desc,
-        qty: qty === "" ? "" : qty,
-        unit: unit === "" ? "" : unit,
-        debit: creditLike ? "" : (debit === "" ? "" : Math.abs(Number(debit))),
-        credit: creditLike ? (credit === "" ? "" : Math.abs(Number(credit))) : (credit === "" ? "" : Math.abs(Number(credit))),
-        vatRate: city ? 0.0 : defaultVatRate,
-        vatEnabled: city ? false : true
-      });
-    }
-
-    return items;
-  }
-
-  // -----------------------------
-  // Address extraction (seller + buyer) from header region
-  // Works well for ibis-like layout
-  // -----------------------------
-  function extractHeaderBlocks(allRows){
-    const lines = allRows.map(r => rowToText(r.parts)).filter(Boolean);
-
-    // Seller: find line containing "ibis" and "zurich" (or hotel name), then take next address lines
-    let sellerName = "";
-    let sellerAddr = [];
-    let sellerContact = [];
-
-    let sellerIdx = -1;
-    for (let i=0;i<lines.length;i++){
-      const L = lines[i];
-      const low = L.toLowerCase();
-      if (low.includes("ibis") && (low.includes("zurich") || low.includes("messe") || low.includes("airport"))){
-        sellerIdx = i;
-        sellerName = L.trim();
-        break;
-      }
-    }
-    if (sellerIdx >= 0){
-      // collect next ~6 lines until "INVOICE" block starts or until too far
-      for (let j=sellerIdx+1; j<Math.min(lines.length, sellerIdx+10); j++){
-        const low = lines[j].toLowerCase();
-        if (low.includes("invoice") || low.includes("invoice no") || low === "invoice") break;
-
-        // contact-ish
-        if (low.includes("telephone") || low.includes("tel") || low.includes("fax") || low.includes("@") || low.includes("www")){
-          sellerContact.push(lines[j].trim());
-          continue;
-        }
-
-        // address-ish
-        if (lines[j].trim()){
-          sellerAddr.push(lines[j].trim());
-        }
-      }
-    }
-
-    // Buyer: take the first block on left that looks like company + address before "INVOICE"
-    // Heuristic: first non-empty block before "INVOICE" that is not the seller line
-    let buyerName = "";
-    let buyerAddr = [];
-    const invoiceIdx = lines.findIndex(l => l.trim().toLowerCase() === "invoice");
-    const scanEnd = invoiceIdx > 0 ? invoiceIdx : Math.min(lines.length, 40);
-
-    // find a line that looks like a company name (has letters and often uppercase / S.L. / SA / GmbH etc)
-    let buyerStart = -1;
-    for (let i=0;i<scanEnd;i++){
-      const L = lines[i].trim();
-      if (!L) continue;
-      const low = L.toLowerCase();
-      if (sellerName && L === sellerName) continue;
-      if (low.includes("ibis") && (low.includes("zurich") || low.includes("messe") || low.includes("airport"))) continue;
-
-      const looksCompany =
-        /[A-Za-z]/.test(L) &&
-        (/[A-Z]{2,}/.test(L) || /\b(s\.l\.|sa|gmbh|ag|ltd|inc|sarl|llc)\b/i.test(L));
-
-      if (looksCompany){
-        buyerStart = i;
-        buyerName = L;
-        break;
-      }
-    }
-    if (buyerStart >= 0){
-      for (let j=buyerStart+1; j<scanEnd; j++){
-        const L = lines[j].trim();
-        if (!L) break;
-        const low = L.toLowerCase();
-        if (low.includes("invoice")) break;
-        // keep VAT/TVA lines inside address block too (user wanted address imported)
-        buyerAddr.push(L);
-        // stop if we hit the invoice meta labels area
-        if (low.startsWith("invoice no") || low.startsWith("arrival") || low.startsWith("departure")) break;
-      }
-    }
-
-    // Normalize seller contact into one line
-    const sellerContactLine = sellerContact
-      .join(" | ")
-      .replace(/\s*\|\s*\|\s*/g," | ")
-      .trim();
-
-    return {
-      sellerName: sellerName || "",
-      sellerAddressBlock: sellerAddr.join("\n").trim(),
-      sellerContact: sellerContactLine,
-      buyerName: buyerName || "",
-      buyerAddressBlock: buyerAddr.join("\n").trim()
-    };
   }
 
   // -----------------------------
@@ -1429,7 +1259,8 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       if (msg.toLowerCase().includes("tainted")){
         alert(
           "PDF Export blockiert (tainted canvas).\n\n" +
-          "Workaround: Nutze „Drucken / Als PDF speichern“."
+          "Workaround: Nutze „Drucken / Als PDF speichern“.\n" +
+          "Hinweis: Der Code versucht bereits ohne Bilder zu exportieren; wenn es trotzdem passiert, blockiert die Umgebung Canvas-Export generell."
         );
       } else {
         alert("PDF Export fehlgeschlagen: " + msg);
@@ -1485,30 +1316,30 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   function applyFormData(d){
     if (!d) return;
 
-    setV("sellerName", d.sellerName ?? v("sellerName") ?? "");
-    setV("sellerContact", d.sellerContact ?? v("sellerContact") ?? "");
-    setV("sellerExtra", d.sellerExtra ?? v("sellerExtra") ?? "");
-    setV("sellerAddressBlock", d.sellerAddressBlock ?? v("sellerAddressBlock") ?? "");
+    setV("sellerName", d.sellerName ?? "");
+    setV("sellerContact", d.sellerContact ?? "");
+    setV("sellerExtra", d.sellerExtra ?? "");
+    setV("sellerAddressBlock", d.sellerAddressBlock ?? "");
 
-    setV("buyerName", d.buyerName ?? v("buyerName") ?? "");
-    setV("buyerAddressBlock", d.buyerAddressBlock ?? v("buyerAddressBlock") ?? "");
+    setV("buyerName", d.buyerName ?? "");
+    setV("buyerAddressBlock", d.buyerAddressBlock ?? "");
 
-    setV("reference", d.reference ?? v("reference") ?? "");
-    setV("invoiceNo", d.invoiceNo ?? v("invoiceNo") ?? "");
-    setV("invoiceDate", d.invoiceDate ?? v("invoiceDate") ?? "");
-    setV("currency", d.currency ?? v("currency") ?? "CHF");
-    setV("arrival", d.arrival ?? v("arrival") ?? "");
-    setV("departure", d.departure ?? v("departure") ?? "");
-    setV("roomReservation", d.roomReservation ?? v("roomReservation") ?? "");
+    setV("reference", d.reference ?? "");
+    setV("invoiceNo", d.invoiceNo ?? "");
+    setV("invoiceDate", d.invoiceDate ?? "");
+    setV("currency", d.currency ?? "CHF");
+    setV("arrival", d.arrival ?? "");
+    setV("departure", d.departure ?? "");
+    setV("roomReservation", d.roomReservation ?? "");
 
-    setV("legalFooter", d.legalFooter ?? v("legalFooter") ?? "");
+    setV("legalFooter", d.legalFooter ?? "");
 
-    state.items = Array.isArray(d.items) ? d.items : state.items;
+    state.items = Array.isArray(d.items) ? d.items : [];
     renderItems();
   }
 
   // -----------------------------
-  // PDF Import
+  // PDF Import (Text Extraction)
   // -----------------------------
   const pdfFileInput = document.getElementById("pdfFile");
   const extractedTextEl = document.getElementById("extractedText");
@@ -1523,8 +1354,11 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     if (!ok){
       setPill("importPill", `<b>Import:</b> blockiert (Text-Fallback)`, "warn");
       alert(
-        "PDF.js ist blockiert.\n\nBitte nutze „Import per Text (Fallback)“:\n" +
-        "- PDF öffnen\n- Text markieren & kopieren\n- im Dialog einfügen"
+        "PDF.js ist im Betrieb blockiert.\n\n" +
+        "Bitte nutze „Import per Text (Fallback)“:\n" +
+        "- PDF in Edge/Chrome/Adobe öffnen\n" +
+        "- Text markieren & kopieren\n" +
+        "- im Fallback-Dialog einfügen"
       );
       e.target.value = "";
       return;
@@ -1543,52 +1377,24 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         setPill("workerPill", "<b>PDF.js:</b> Worker deaktiviert (Fallback)", "warn");
       }
 
-      const allRows = [];
       let fullText = "";
-
       for (let p=1; p<=pdf.numPages; p++){
         const page = await pdf.getPage(p);
-        const rows = await pageToRows(page);
-        allRows.push(...rows);
-
-        // Debug text
-        for (const r of rows){
-          const line = rowToText(r.parts);
-          if (line) fullText += line + "\n";
-        }
+        fullText += await extractPageTextByLines(page);
         fullText += "\n";
       }
 
       fullText = normalizeText(fullText);
       extractedTextEl.value = fullText;
 
-      // Default VAT rate: from "VAT Breakdown" line if present
-      const mVat = fullText.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
-      const defaultVatRate = mVat ? toNumber(mVat[1]) : 3.8;
+      const parsed = parseInvoiceFromText(fullText);
 
-      // 1) Parse table strictly by columns (fixes your wrong 511 / 0.15 / 78.5 issue)
-      const items = parseIbisTableFromRows(allRows, defaultVatRate);
-
-      // 2) Extract header blocks (seller/buyer)
-      const blocks = extractHeaderBlocks(allRows);
-
-      // 3) Parse meta from text (invoice no/date/arrival/departure)
-      const meta = parseMetaFromText(fullText);
-
-      const parsed = {
-        ...collectFormData(),
-        ...blocks,
-        ...meta,
-        items: items.length ? items : collectFormData().items
-      };
-
-      applyFormData(parsed);
-
-      if (items.length){
+      if (parsed){
+        applyFormData(parsed);
         setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
       } else {
-        setPill("importPill", `<b>Import:</b> Tabelle nicht erkannt (Debug prüfen)`, "warn");
-        alert("PDF importiert, aber Tabelle wurde nicht sicher erkannt. Bitte im Debug-Feld prüfen.");
+        setPill("importPill", `<b>Import:</b> nichts erkannt`, "warn");
+        alert("PDF importiert, aber Daten nicht erkannt. Bitte unten im „Import-Text“ prüfen (evtl. gescannt / anderer Aufbau).");
       }
 
     } catch(err){
@@ -1601,53 +1407,13 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
-  // Meta parser from text (invoice no/date/arrival/departure/room/reservation/currency)
-  // -----------------------------
-  function parseMetaFromText(t){
-    const out = {};
-    const pick = (re) => {
-      const m = t.match(re);
-      return m ? (m[1] ?? "").trim() : "";
-    };
-
-    const invNo =
-      pick(/\bInvoice\s*(?:No\.?|Number|N°|Nr\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,})/i) ||
-      pick(/\bINVOICE\s*(?:No\.?|NUMBER|N°|NR\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,})/i);
-
-    const invDate =
-      pick(/\b(?:Invoice\s*)?Date\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i);
-
-    const arrival =
-      pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i);
-
-    const departure =
-      pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i);
-
-    const currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
-
-    if (invNo) out.invoiceNo = invNo;
-    if (invDate) out.invoiceDate = invDate.replace(/\//g,".");
-    if (arrival) out.arrival = arrival.replace(/\//g,".");
-    if (departure) out.departure = departure.replace(/\//g,".");
-    if (currency) out.currency = currency;
-
-    // Room / Reservation lines often appear with numbers; try to pick them
-    const room = pick(/\bRoom\s*No\.?\s*[:\-]?\s*([0-9A-Z\-]+)/i);
-    const res = pick(/\bReservation\s*No\.?\s*[:\-]?\s*([0-9A-Z\-]+)/i);
-    if (room || res){
-      out.roomReservation = [room ? `Room ${room}` : "", res ? `Reservation ${res}` : ""].filter(Boolean).join(" | ");
-    }
-    return out;
-  }
-
-  // -----------------------------
-  // Text-Fallback Import (copy/paste)
+  // Text-Fallback Import
   // -----------------------------
   document.getElementById("manualImportBtn").addEventListener("click", () => {
     const existing = extractedTextEl.value?.trim() ? extractedTextEl.value.trim() : "";
     const txt = prompt(
       "Fallback-Import (Copy/Paste):\n\n" +
-      "1) PDF öffnen\n" +
+      "1) PDF in Edge/Chrome/Adobe öffnen\n" +
       "2) Text markieren & kopieren\n" +
       "3) Hier einfügen und OK\n\n" +
       "Hinweis: Wenn PDF nur ein Scan/Bild ist, ist kaum Text kopierbar.",
@@ -1657,11 +1423,200 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
     extractedTextEl.value = txt;
 
-    // Fallback cannot do perfect X-column parsing, so we only parse meta + some lines
-    const meta = parseMetaFromText(normalizeText(txt));
-    applyFormData({ ...collectFormData(), ...meta });
-    setPill("importPill", "<b>Import:</b> Text-Fallback ✓ (ohne perfekte Tabelle)", "warn");
+    const parsed = parseInvoiceFromText(normalizeText(txt));
+    if (parsed){
+      applyFormData(parsed);
+      setPill("importPill", "<b>Import:</b> Text-Fallback ✓", "ok");
+    } else {
+      setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
+      alert("Text eingefügt, aber Daten nicht erkannt. Prüfe bitte den eingefügten Text im Debug-Feld.");
+    }
   });
+
+  // -----------------------------
+  // Parser (Fix für DEINEN Text + robust für Pipe-Spalten)
+  // -----------------------------
+  function parseInvoiceFromText(text){
+    const out = collectFormData();
+    const t = text || "";
+    const upper = t.toUpperCase();
+
+    const pick = (re) => {
+      const m = t.match(re);
+      return m ? (m[1] ?? "").trim() : "";
+    };
+
+    // Kopf-Felder
+    const invNo = pick(/\bInvoice\s*No\.?\s*([A-Z0-9\-\/]{3,})/i) || pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{3,})/i);
+    const invDate = pick(/\bDate\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})/i);
+    const arrival = pick(/\bArrival\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})/i);
+    const departure = pick(/\bDeparture\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})/i);
+
+    const roomNo = pick(/\bRoom\s*No\.?\s*([A-Z0-9\-\/]+)/i);
+    const resNo  = pick(/\bReservation\s*No\.?\s*([A-Z0-9\-\/]+)/i);
+
+    let currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
+    if (!currency){
+      const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
+      if (m) currency = m[1];
+    }
+
+    // Default VAT rate aus "VAT 3.8%"
+    const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
+    const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
+
+    if (invNo) out.invoiceNo = invNo;
+    if (invDate) out.invoiceDate = invDate.replace(/\//g,".");
+    if (arrival) out.arrival = arrival.replace(/\//g,".");
+    if (departure) out.departure = departure.replace(/\//g,".");
+    if (currency) out.currency = currency;
+
+    if (roomNo || resNo){
+      out.roomReservation = [
+        roomNo ? `Room ${roomNo}` : "",
+        resNo ? `Reservation ${resNo}` : ""
+      ].filter(Boolean).join(" | ");
+    }
+
+    // Adressen aus deinem Text (fix)
+    // Buyer: Block von Anfang bis "INVOICE"
+    // Seller: ab "ibis Zurich Messe Airport" bis vor Header "Date VAT Description"
+    (function parseAddressBlocks(){
+      const lines = t.split("\n").map(s=>s.trim()).filter(Boolean);
+
+      const invoiceIdx = lines.findIndex(l => /^INVOICE$/i.test(l));
+      if (invoiceIdx > 0){
+        const buyerBlock = lines.slice(0, invoiceIdx).join("\n").trim();
+        if (buyerBlock){
+          const buyerLines = buyerBlock.split("\n").map(s=>s.trim()).filter(Boolean);
+          out.buyerName = buyerLines[0] || out.buyerName;
+          out.buyerAddressBlock = buyerLines.slice(1).join("\n").trim();
+        }
+      }
+
+      const sellerStart = lines.findIndex(l => /ibis\s+zurich\s+messe\s+airport/i.test(l));
+      const headerIdx = lines.findIndex(l => /^Date\s+VAT\s+Description/i.test(l));
+
+      if (sellerStart >= 0){
+        const end = headerIdx > sellerStart ? headerIdx : Math.min(lines.length, sellerStart + 12);
+        const sellerLines = lines.slice(sellerStart, end).filter(l => !/management\s+switzerland/i.test(l) && !/essendi/i.test(l));
+        if (sellerLines.length){
+          out.sellerName = sellerLines[0];
+          let addr = sellerLines.slice(1).join("\n").trim();
+
+          // Normalize CH-8050 -> CH-8050 ZURICH wenn fehlt (optional)
+          if (/CH-8050\s*$/i.test(addr)) addr += "\nZURICH";
+          // wenn Switzerland fehlt, hinzufügen (bei deinem Text fehlt es im Sellerblock)
+          if (!/switzerland/i.test(addr)) addr += "\nSwitzerland";
+
+          out.sellerAddressBlock = addr.trim();
+        }
+      }
+    })();
+
+    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
+    const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
+    const isCityTaxDesc = (desc) => /(city\s*tax|tourist\s*tax|taxe\s*de\s*s[eé]jour|kurtaxe)/i.test(desc);
+
+    // ---------- Items: A) Pipe-Spalten (vom PDF Import) ----------
+    const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
+    const items = [];
+
+    function parseMoneyCell(s){
+      const raw = String(s || "").trim();
+      if (!raw) return "";
+      const isParens = /^\(.*\)$/.test(raw);
+      const cleaned = raw.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
+      let n = toNumber(cleaned);
+      if (isParens) n = -Math.abs(n);
+      return n;
+    }
+
+    for (const line of lines){
+      if (!line.includes("|")) continue;
+
+      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
+      if (parts.length < 4) continue;
+
+      const date = parts[0];
+      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
+
+      const desc = parts[2] || "";
+      const qtyCell = parts[3] || "";
+      const debitCell = parts[4] || "";
+      const creditCell = parts[5] || "";
+
+      const qty = /^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "";
+
+      let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
+      let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
+
+      if (debitVal !== "" && debitVal < 0){
+        creditVal = Math.abs(debitVal);
+        debitVal = "";
+      }
+
+      const city = isCityTaxDesc(desc);
+      const creditLike = isCreditDesc(desc);
+
+      items.push({
+        date: normDate(date),
+        desc,
+        qty: qty === "" ? "" : qty,
+        unit: "",
+        debit: creditLike ? "" : (debitVal === "" ? "" : Math.abs(debitVal)),
+        credit: creditLike
+          ? (creditVal === "" ? (debitVal === "" ? "" : Math.abs(debitVal)) : Math.abs(creditVal))
+          : (creditVal === "" ? "" : Math.abs(creditVal)),
+        vatRate: city ? 0.0 : defaultRate,
+        vatEnabled: city ? false : true
+      });
+    }
+
+    // ---------- Items: B) Dein Fallback-Text (ohne Pipes) ----------
+    if (items.length === 0){
+      // typische Zeile:
+      // 02.01.26 Deposit Transfered 2 3,167.50
+      // 05.01.26 Manual Accomodation 1-110.00  (qty + amount klebt!)
+      const lineRe = /^(\d{2}\.\d{2}\.\d{2})\s+(.*?)\s+(\d{1,6})\s*([\-]?\d[\d.,']*)\s*$/;
+
+      for (const ln of lines){
+        const m = ln.match(lineRe);
+        if (!m) continue;
+
+        const date = m[1];
+        const desc = (m[2] || "").trim();
+        const qty = toNumber(m[3]);
+        const amount = toNumber(m[4]);
+
+        const creditLike = isCreditDesc(desc);
+        const city = isCityTaxDesc(desc);
+
+        // Heuristik für ibis:
+        // Deposit Transfered -> Credit
+        // Negative amount -> Credit
+        const negative = amount < 0;
+
+        items.push({
+          date: normDate(date),
+          desc,
+          qty,
+          unit: "",
+          debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+          credit: (creditLike || negative) ? Math.abs(amount) : "",
+          vatRate: city ? 0.0 : defaultRate,
+          vatEnabled: city ? false : true
+        });
+      }
+    }
+
+    if (items.length) out.items = items;
+
+    const hasAnything =
+      !!out.invoiceNo || !!out.invoiceDate || (out.items && out.items.length > 0);
+
+    return hasAnything ? out : null;
+  }
 
   // -----------------------------
   // Init
@@ -1670,6 +1625,9 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("importPill", "<b>Import:</b> bereit", "");
     setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
+
+    // Startzustand leer
+    state.items = [];
     renderItems();
     recalc();
   })();
