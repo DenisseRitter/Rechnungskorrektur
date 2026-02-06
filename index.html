@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export + Fixes Logo</title>
 
-  <!-- PDF.js (Import) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js"></script>
-
-  <!-- PDF Export (client-side) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!--
+    WICHTIG (Betriebs-/Security-Umgebung):
+    - KEINE festen CDN <script src=...> mehr.
+    - Bibliotheken werden "on demand" geladen und wir probieren mehrere CDNs.
+    - Wenn alles geblockt ist: PDF-Import per TEXT-Fallback (Copy/Paste aus Edge/Chrome/Adobe PDF-Viewer).
+  -->
 
   <style>
     :root{
@@ -47,6 +47,7 @@
     .btn.primary{ background:var(--accent); color:#fff; border-color:transparent; }
     .btn.success{ background:var(--ok); color:#fff; border-color:transparent; }
     .btn:active{ transform: translateY(1px); }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
 
     /* WICHTIG: nicht display:none (sonst blocken manche Browser <label for=...>) */
     input[type="file"]{
@@ -320,6 +321,10 @@
     <label class="btn primary" for="pdfFile">PDF importieren</label>
     <input id="pdfFile" type="file" accept="application/pdf" />
 
+    <button class="btn" id="manualImportBtn" type="button" title="Fallback, wenn PDF.js blockiert ist">
+      Import per Text (Fallback)
+    </button>
+
     <button class="btn" id="addRowBtn" type="button">+ Position</button>
 
     <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
@@ -423,7 +428,10 @@ France</textarea>
       <div class="statusBar">
         <span class="statusPill" id="importPill"><b>Import:</b> —</span>
         <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
-        <span class="hint" id="importHint">Wenn nach Import keine Daten übernommen werden: unten “Import-Text” prüfen (PDF evtl. nur Bild).</span>
+        <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
+        <span class="hint" id="importHint">
+          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen (PDF öffnen → Text markieren → kopieren → einfügen).
+        </span>
       </div>
 
       <div style="height:14px;"></div>
@@ -597,7 +605,9 @@ France</textarea>
       </div>
 
       <div class="noPrint" style="margin-top:10px;">
-        <div class="hint">Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“ (Download).</div>
+        <div class="hint">
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“ (falls Export-Libs im Betrieb blockiert sind, nutze Drucken).
+        </div>
       </div>
 
       <div style="height:14px;"></div>
@@ -617,14 +627,17 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
       <div style="height:14px;"></div>
 
-      <!-- Debug: extracted text (no second page, but visible on demand) -->
+      <!-- Debug: extracted text -->
       <details class="card" style="border-radius:12px;">
-        <summary class="hd"><strong>Import-Text (Debug) anzeigen</strong><span class="hint">Hier siehst du den aus dem PDF gelesenen Text.</span></summary>
+        <summary class="hd">
+          <strong>Import-Text (Debug) anzeigen</strong>
+          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
+        </summary>
         <div class="bd">
-          <label>Ausgelesener Text (PDF.js)</label>
+          <label>Ausgelesener / eingefügter Text</label>
           <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
           <div class="hint" style="margin-top:8px;">
-            Wenn hier fast nichts steht: PDF ist vermutlich gescannt (Bild) → ohne OCR kann man keine Daten zuverlässig importieren.
+            Wenn PDF-Import im Betrieb blockiert ist: Öffne PDF in Edge/Chrome/Adobe → Text markieren → kopieren → „Import per Text (Fallback)“.
           </div>
         </div>
       </details>
@@ -634,6 +647,57 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 </main>
 
 <script>
+  // -----------------------------
+  // CDN Kandidaten (mehrere Quellen)
+  // -----------------------------
+  const LIBS = {
+    pdfjs: [
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js",
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.js",
+      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.min.js",
+    ],
+    pdfjsWorker: [
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js",
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
+      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
+    ],
+    html2canvas: [
+      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+      "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js",
+    ],
+    jspdf: [
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
+      "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js",
+    ]
+  };
+
+  const loadedScripts = new Set();
+  function loadScriptOnce(url){
+    return new Promise((resolve, reject) => {
+      if (loadedScripts.has(url)) return resolve(true);
+      const s = document.createElement("script");
+      s.src = url;
+      s.async = true;
+      s.onload = () => { loadedScripts.add(url); resolve(true); };
+      s.onerror = () => reject(new Error("Script load failed: " + url));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function loadAny(candidates){
+    for (const url of candidates){
+      try{
+        await loadScriptOnce(url);
+        return url;
+      } catch (e){
+        console.warn(e);
+      }
+    }
+    return "";
+  }
+
   // -----------------------------
   // State
   // -----------------------------
@@ -652,12 +716,10 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     if (val === null || val === undefined) return 0;
     if (typeof val === "number") return isFinite(val) ? val : 0;
 
-    // robust: "1 234.50", "1'234.50", "1.234,50", "1234,50"
     let s = String(val).trim();
     if (!s) return 0;
     s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
 
-    // if has both "." and "," assume last separator is decimal
     const hasDot = s.includes(".");
     const hasComma = s.includes(",");
     if (hasDot && hasComma){
@@ -666,6 +728,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       const decIsComma = lastComma > lastDot;
       if (decIsComma){
         s = s.replace(/\./g,"").replace(",",".");
+
       } else {
         s = s.replace(/,/g,"");
       }
@@ -699,13 +762,70 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     if (kind) el.classList.add(kind);
     el.innerHTML = text;
   }
-
   function normalizeText(t){
     return (t || "")
       .replace(/\r/g,"")
       .replace(/[ \t]+\n/g,"\n")
       .replace(/\n{3,}/g,"\n\n")
       .trim();
+  }
+
+  function v(id){ return document.getElementById(id).value; }
+  function setV(id, val){ document.getElementById(id).value = val; }
+  function setText(id, val){
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = val;
+  }
+
+  // -----------------------------
+  // PDF.js On-Demand Loader
+  // -----------------------------
+  async function ensurePdfJsReady(){
+    if (window.pdfjsLib) return true;
+
+    setPill("workerPill", "<b>PDF.js:</b> laden…", "");
+    const url = await loadAny(LIBS.pdfjs);
+
+    if (!url || !window.pdfjsLib){
+      setPill("workerPill", "<b>PDF.js:</b> blockiert – Text-Fallback nutzen", "warn");
+      return false;
+    }
+
+    // Worker setzen (wenn möglich)
+    const workerUrl = await loadAny(LIBS.pdfjsWorker);
+    try{
+      if (workerUrl && window.pdfjsLib?.GlobalWorkerOptions){
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+        setPill("workerPill", "<b>PDF.js:</b> geladen (Worker)", "ok");
+      } else {
+        setPill("workerPill", "<b>PDF.js:</b> geladen (ohne Worker)", "warn");
+      }
+    } catch (e){
+      console.warn("Worker set failed:", e);
+      setPill("workerPill", "<b>PDF.js:</b> geladen (Fallback)", "warn");
+    }
+    return true;
+  }
+
+  // -----------------------------
+  // Export libs On-Demand Loader
+  // -----------------------------
+  async function ensureExportLibs(){
+    // html2canvas
+    if (!window.html2canvas){
+      setPill("exportPill", "<b>Export:</b> html2canvas laden…", "");
+      await loadAny(LIBS.html2canvas);
+    }
+    // jspdf
+    if (!window.jspdf){
+      setPill("exportPill", "<b>Export:</b> jsPDF laden…", "");
+      await loadAny(LIBS.jspdf);
+    }
+
+    const ok = !!window.html2canvas && !!window.jspdf?.jsPDF;
+    setPill("exportPill", ok ? "<b>Export:</b> bereit" : "<b>Export:</b> blockiert (Drucken nutzen)", ok ? "ok" : "warn");
+    return ok;
   }
 
   // -----------------------------
@@ -788,7 +908,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   // Recalc totals + VAT breakdown per rate
   // -----------------------------
   function recalc(){
-    // Auto-fill debit from qty*unit if debit & credit empty
     state.items = state.items.map(it => {
       const qty = toNumber(it.qty);
       const unit = toNumber(it.unit);
@@ -814,8 +933,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     document.getElementById("balance").textContent = fmt(balance);
     document.getElementById("grandTotal").textContent = fmt(balance);
 
-    // VAT breakdown by rate (assumes entered amounts are GROSS for taxable lines)
-    const groups = new Map(); // rate -> { gross }
+    const groups = new Map();
     for (const it of state.items){
       if (!it.vatEnabled) continue;
       const rate = toNumber(it.vatRate);
@@ -918,12 +1036,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     setText("p_legalFooter", v("legalFooter") || "");
   }
 
-  function setText(id, val){
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = val;
-  }
-
   // keep printable in sync when fields change
   const headerInputs = [
     "sellerName","sellerContact","sellerExtra","sellerAddressBlock",
@@ -947,6 +1059,16 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   document.getElementById("exportPdfBtn").addEventListener("click", async () => {
     try{
       recalc();
+
+      const ok = await ensureExportLibs();
+      if (!ok){
+        alert(
+          "Finale PDF exportieren ist im Betrieb vermutlich blockiert (CDN-Schutz).\n\n" +
+          "Bitte nutze stattdessen: „Drucken / Als PDF speichern“."
+        );
+        return;
+      }
+
       const paper = document.getElementById("invoicePaper");
 
       const canvas = await html2canvas(paper, {
@@ -982,6 +1104,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
       const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g,"_");
       pdf.save(`Finale_Rechnung_${inv}.pdf`);
+
     } catch (err){
       console.error(err);
       alert("PDF Export fehlgeschlagen: " + (err?.message || err));
@@ -1058,49 +1181,31 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     renderItems();
   }
 
-  function v(id){ return document.getElementById(id).value; }
-  function setV(id, val){ document.getElementById(id).value = val; }
-
   // -----------------------------
   // PDF Import (Text Extraction)
   // -----------------------------
   const pdfFileInput = document.getElementById("pdfFile");
   const extractedTextEl = document.getElementById("extractedText");
 
-  function setupPdfJsWorker(){
-    try{
-      if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions){
-        pdfjsLib.GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
-        setPill("workerPill", "<b>PDF.js:</b> Worker (CDN)", "ok");
-        return true;
-      }
-    } catch(_){}
-    return false;
-  }
-
-  function ensurePdfJsReady(){
-    if (!window.pdfjsLib){
-      setPill("workerPill", "<b>PDF.js:</b> nicht geladen", "warn");
-      alert("PDF.js konnte nicht geladen werden. Prüfe Internet/Adblocker.");
-      return false;
-    }
-    if (!setupPdfJsWorker()){
-      setPill("workerPill", "<b>PDF.js:</b> Fallback", "warn");
-    }
-    return true;
-  }
-
   pdfFileInput.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!ensurePdfJsReady()){
+    setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} …`, "");
+
+    const ok = await ensurePdfJsReady();
+    if (!ok){
+      setPill("importPill", `<b>Import:</b> blockiert (Text-Fallback)`, "warn");
+      alert(
+        "PDF.js ist im Betrieb blockiert.\n\n" +
+        "Bitte nutze „Import per Text (Fallback)“:\n" +
+        "- PDF in Edge/Chrome/Adobe öffnen\n" +
+        "- Text markieren & kopieren\n" +
+        "- im Fallback-Dialog einfügen"
+      );
       e.target.value = "";
       return;
     }
-
-    setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} …`, "");
 
     try{
       const buf = await file.arrayBuffer();
@@ -1110,7 +1215,7 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       try{
         pdf = await pdfjsLib.getDocument({ data }).promise;
       } catch (err1){
-        console.warn("Worker blocked, retry disableWorker", err1);
+        console.warn("Worker blocked? retry disableWorker", err1);
         pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
         setPill("workerPill", "<b>PDF.js:</b> Worker deaktiviert (Fallback)", "warn");
       }
@@ -1124,8 +1229,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       }
 
       fullText = normalizeText(fullText);
-
-      // Debug output
       extractedTextEl.value = fullText;
 
       const parsed = parseInvoiceFromText(fullText);
@@ -1148,6 +1251,33 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   });
 
   // -----------------------------
+  // Text-Fallback Import (für Edge/Chrome/Adobe)
+  // -----------------------------
+  document.getElementById("manualImportBtn").addEventListener("click", () => {
+    const existing = extractedTextEl.value?.trim() ? extractedTextEl.value.trim() : "";
+    const txt = prompt(
+      "Fallback-Import (Copy/Paste):\n\n" +
+      "1) PDF in Edge/Chrome/Adobe öffnen\n" +
+      "2) Text markieren & kopieren\n" +
+      "3) Hier einfügen und OK\n\n" +
+      "Hinweis: Wenn PDF nur ein Scan/Bild ist, ist kaum Text kopierbar.",
+      existing
+    );
+    if (!txt) return;
+
+    extractedTextEl.value = txt;
+
+    const parsed = parseInvoiceFromText(normalizeText(txt));
+    if (parsed){
+      applyFormData(parsed);
+      setPill("importPill", "<b>Import:</b> Text-Fallback ✓", "ok");
+    } else {
+      setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
+      alert("Text eingefügt, aber Daten nicht erkannt. Prüfe bitte den eingefügten Text im Debug-Feld.");
+    }
+  });
+
+  // -----------------------------
   // Robust parser
   // -----------------------------
   function parseInvoiceFromText(text){
@@ -1155,23 +1285,19 @@ Weitere Informationen / rechtliche Angaben …</textarea>
     const t = text || "";
     const upper = t.toUpperCase();
 
-    // helper: find first match group
     const pick = (re) => {
       const m = t.match(re);
       return m ? (m[1] ?? "").trim() : "";
     };
 
-    // invoice number (many variants)
     let invNo =
       pick(/\bInvoice\s*(?:No\.?|Number|N°|Nr\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,})/i) ||
       pick(/\bINVOICE\s*(?:No\.?|NUMBER|N°|NR\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,})/i);
 
-    // invoice date variants: 05.01.2026 / 05/01/2026 / 2026-01-05
     let invDate =
       pick(/\b(?:Invoice\s*)?Date\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i) ||
       pick(/\bDate\s*[:\-]?\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/i);
 
-    // arrival/departure
     let arrival =
       pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i) ||
       pick(/\bArriv(?:al|ée)?\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i);
@@ -1179,38 +1305,29 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i) ||
       pick(/\bDepart(?:ure|ure|ure)?\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{2,4})/i);
 
-    // currency (try common codes)
     let currency =
-      pick(/\b(Currency)\s*[:\-]?\s*([A-Z]{3})\b/i) ? (t.match(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i)[1]) : "" ;
+      pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
 
     if (!currency){
       const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
       if (m) currency = m[1];
     }
 
-    // VAT default rate
     const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
 
-    // Apply header fields if found
     if (invNo) out.invoiceNo = invNo;
     if (invDate) out.invoiceDate = invDate.replace(/\//g,".");
     if (arrival) out.arrival = arrival.replace(/\//g,".");
     if (departure) out.departure = departure.replace(/\//g,".");
     if (currency) out.currency = currency;
 
-    // ---- Items parsing (robust) ----
-    // We try multiple patterns:
-    // A) Date + Description + Qty + Unit + Amount
-    // B) Date + Description + Amount (qty/unit missing)
-    // C) Lines where "X" appears: "2 X 135.00" then amount line
     const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
 
     const items = [];
     const dateRe = /^(\d{2}[.\/]\d{2}[.\/](?:\d{2}|\d{4}))\s+(.*)$/;
 
-    // helpers
-    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2"); // 02.01.26 -> 02.01.2026
+    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
     const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
     const isCityTaxDesc = (desc) => /(city\s*tax|tourist\s*tax|taxe\s*de\s*s[eé]jour|kurtaxe)/i.test(desc);
 
@@ -1238,8 +1355,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
       const date = m[1];
       const rest = m[2];
 
-      // Pattern A: "...  2  135.00  270.00" (qty unit amount at end)
-      // Take last 3 numbers as qty/unit/amount if plausible
       const nums = rest.match(/([0-9]+(?:[.,][0-9]+)?)/g) || [];
       if (nums.length >= 3){
         const last3 = nums.slice(-3).map(toNumber);
@@ -1247,7 +1362,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         const unit = last3[1];
         const amount = last3[2];
 
-        // heuristics: qty small-ish, unit > 0, amount > 0
         if (qty > 0 && qty < 10000 && unit > 0 && amount !== 0){
           const desc = rest.replace(/([0-9]+(?:[.,][0-9]+)?\s*){3}$/, "").trim();
           const creditLike = isCreditDesc(desc);
@@ -1262,7 +1376,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         }
       }
 
-      // Pattern B: "...  270.00" (only amount at end)
       const lastNum = rest.match(/([0-9]+(?:[.,][0-9]+)?)\s*$/);
       if (lastNum){
         const amount = toNumber(lastNum[1]);
@@ -1280,7 +1393,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
         }
       }
 
-      // Pattern C: next lines have "2 X 135.00" then "… 270.00"
       const m2 = (lines[i+1] || "").match(/^(\d+(?:[.,]\d+)?)\s*[xX]\s*([0-9]+(?:[.,][0-9]+)?)$/);
       const m3 = (lines[i+2] || "").match(/([0-9]+(?:[.,][0-9]+)?)\s*$/);
       if (m2 && m3){
@@ -1303,7 +1415,6 @@ Weitere Informationen / rechtliche Angaben …</textarea>
 
     if (items.length) out.items = items;
 
-    // if nothing meaningful recognized, return null so UI warns
     const hasAnything =
       !!out.invoiceNo || !!out.invoiceDate || (out.items && out.items.length > 0);
 
@@ -1314,18 +1425,9 @@ Weitere Informationen / rechtliche Angaben …</textarea>
   // Init
   // -----------------------------
   (function init(){
-    if (window.pdfjsLib){
-      try{
-        pdfjsLib.GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
-        setPill("workerPill", "<b>PDF.js:</b> Worker (CDN)", "ok");
-      } catch {
-        setPill("workerPill", "<b>PDF.js:</b> Fallback", "warn");
-      }
-    } else {
-      setPill("workerPill", "<b>PDF.js:</b> lädt…", "");
-    }
+    setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("importPill", "<b>Import:</b> bereit", "");
+    setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
     renderItems();
     recalc();
   })();
