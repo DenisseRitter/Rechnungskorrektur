@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export + Fixes (Header-Spalten + Adressen)</title>
+  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export (Fix Footer + Logo + Import)</title>
 
   <style>
     :root{
@@ -158,6 +158,9 @@
     .statusPill.warn{ color:var(--warn); border-color:#ffedd5; }
     .statusPill b{ color:inherit; }
 
+    /* -----------------------------
+       Printable invoice
+       ----------------------------- */
     .invoicePaper{
       background:#fff;
       border:1px solid var(--line);
@@ -180,7 +183,7 @@
 
     .brandRow{
       display:grid;
-      grid-template-columns: 240px 1fr; /* LOGO-SPALTE BREITER (war 180px) */
+      grid-template-columns: 320px 1fr; /* größer für Logo */
       gap:14px;
       align-items:start;
     }
@@ -188,19 +191,27 @@
       .brandRow{ grid-template-columns: 1fr; }
     }
 
-    /* LOGO GRÖSSER */
+    /* LOGO: größer + klarer */
     .logoBox{
-      width:240px;     /* war 180px */
-      height:120px;    /* war 80px */
-      border:1px solid #eee;
-      border-radius:12px;
+      width:320px;     /* deutlich größer */
+      height:150px;
+      border:1px solid #e6e6e6;
+      border-radius:14px;
       display:flex;
       align-items:center;
       justify-content:center;
       overflow:hidden;
       background:#fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+      padding:10px;
     }
-    .logoBox img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+    .logoBox img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      display:block;
+      image-rendering:auto;
+    }
 
     .sellerHead{
       border:1px solid #f0f0f0;
@@ -279,6 +290,7 @@
       padding:10px;
     }
 
+    /* FOOTER: 2 Spalten (links/rechts fix) */
     .paperLegal{
       margin-top:12px;
       border-top:1px solid #eee;
@@ -286,13 +298,26 @@
       font-size:11px;
       color:var(--muted);
       line-height:1.35;
+    }
+    .paperLegalGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+      align-items:start;
+    }
+    .paperLegalCol{
       white-space:pre-wrap;
     }
-
-    details summary{
-      cursor:pointer;
-      font-weight:800;
+    .paperLegalCol.right{
+      text-align:right;
+      white-space:pre-wrap;
     }
+    @media (max-width: 650px){
+      .paperLegalGrid{ grid-template-columns: 1fr; }
+      .paperLegalCol.right{ text-align:left; }
+    }
+
+    details summary{ cursor:pointer; font-weight:800; }
 
     @media print{
       body{ background:#fff; }
@@ -301,13 +326,14 @@
       .card{ border:none; box-shadow:none; }
       .invoicePaper{ border:none; border-radius:0; padding:0; }
       @page{ size:A4; margin:12mm; }
+      .logoBox{ box-shadow:none; }
     }
   </style>
 </head>
 
 <body>
 <header>
-  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (Header-Spalten + Adressen) • Druck/PDF Export</h1>
+  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (verbessert) • Druck/PDF Export</h1>
 
   <div class="toolbar">
     <label class="btn primary" for="pdfFile">PDF importieren</label>
@@ -321,10 +347,6 @@
 
     <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
     <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
-
-    <button class="btn" id="exportJsonBtn" type="button">Export JSON</button>
-    <label class="btn" for="importJson">JSON import</label>
-    <input id="importJson" type="file" accept="application/json" />
   </div>
 </header>
 
@@ -332,7 +354,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor (alles anpassbar)</strong>
-      <span class="hint">MwSt pro Zeile wählbar. PDF-Import nutzt Header-Spalten (X-Positionen) + Adress-Erkennung.</span>
+      <span class="hint">MwSt pro Zeile wählbar. PDF-Import nutzt Header-Spalten (X-Positionen) + robustere Feld-Erkennung.</span>
     </div>
 
     <div class="bd">
@@ -365,7 +387,7 @@ Switzerland</textarea>
       <div class="grid2">
         <div>
           <label>Kunde</label>
-          <input id="buyerName" class="field" value="BEY TOURS" />
+          <input id="buyerName" class="field" value="" />
         </div>
         <div>
           <label>Referenz / Gastname</label>
@@ -593,26 +615,18 @@ Switzerland</textarea>
           </div>
         </div>
 
-        <div class="paperLegal" id="p_legalFooter"></div>
+        <!-- FIXED FOOTER (links/rechts) -->
+        <div class="paperLegal">
+          <div class="paperLegalGrid">
+            <div class="paperLegalCol" id="p_legalLeft"></div>
+            <div class="paperLegalCol right" id="p_legalRight"></div>
+          </div>
+        </div>
       </div>
 
       <div class="noPrint" style="margin-top:10px;">
         <div class="hint">
           Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
-        </div>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="card" style="border-radius:12px;">
-        <div class="hd">
-          <strong>Fußzeile / Bankdaten / Rechtstext (wird gedruckt)</strong>
-          <span class="hint">FIX: Bankdaten sind fest im Code hinterlegt (gelber Bereich).</span>
-        </div>
-        <div class="bd">
-          <label>Footer-Text (fix)</label>
-          <!-- FIX: readonly, wird aus FIXED_LEGAL_FOOTER befüllt -->
-          <textarea id="legalFooter" class="field" readonly></textarea>
         </div>
       </div>
 
@@ -637,15 +651,21 @@ Switzerland</textarea>
 </main>
 
 <script>
-  // -----------------------------
-  // FIX: Footer/Bankdaten (gelb markierter Bereich) FEST im Code
-  // -----------------------------
-  const FIXED_LEGAL_FOOTER = `Essendi Switzerland SA (ehem. AccorInvest)
+  // =============================================================
+  // 1) FIXED FOOTER (links/rechts) – wie von dir vorgegeben
+  // =============================================================
+  const FIXED_FOOTER_LEFT = `Essendi Switzerland SA (ehem. AccorInvest)
 UBS SA
 Konto-Nr: 243-442422.05R
 IBAN: CH24 0024 3243 4424 2205 R
 BIC: UBSWCHZH80A
 USt-IdNr. CHE-106.003.397 MWST`;
+
+  const FIXED_FOOTER_RIGHT = `ESSENDI SWITZERLAND SA
+Management Switzerland
+ibis Zurich Messe Airport
+Heidi Abel-Weg 5
+CH-8050`;
 
   // -----------------------------
   // CDN Kandidaten (mehrere Quellen)
@@ -700,9 +720,7 @@ USt-IdNr. CHE-106.003.397 MWST`;
   // -----------------------------
   // State
   // -----------------------------
-  const state = {
-    items: []
-  };
+  const state = { items: [] };
 
   // -----------------------------
   // Helpers
@@ -714,7 +732,6 @@ USt-IdNr. CHE-106.003.397 MWST`;
     let s = String(val).trim();
     if (!s) return 0;
 
-    // Spaces + thousand separators
     s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
 
     const hasDot = s.includes(".");
@@ -803,7 +820,8 @@ USt-IdNr. CHE-106.003.397 MWST`;
   }
 
   // -----------------------------
-  // FIX: Header-Spalten basierte Tabellen-Zeilen
+  // Header-Spalten basierte Tabellen-Zeilen
+  // (robuster: mehr Header-Varianten, weniger "verschlucken")
   // -----------------------------
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
@@ -834,22 +852,22 @@ USt-IdNr. CHE-106.003.397 MWST`;
 
     const norm = (s) => s.toLowerCase().replace(/[^a-z0-9%]+/g," ").replace(/\s+/g," ").trim();
 
+    // Header finden (Date/Description/Qty/Debit/Credit — VAT optional)
     let headerY = null;
     for (const yKey of yKeys){
       const t = norm(rowText(yKey));
-      if (
-        t.includes("date") &&
-        t.includes("description") &&
-        (t.includes("qty") || t.includes("qty.")) &&
-        t.includes("debit") &&
-        t.includes("credit")
-      ){
+      const hasDate = t.includes("date");
+      const hasDesc = t.includes("description");
+      const hasQty  = t.includes("qty") || t.includes("qty.");
+      const hasDebit = t.includes("debit");
+      const hasCredit = t.includes("credit");
+      if (hasDate && hasDesc && hasQty && hasDebit && hasCredit){
         headerY = yKey;
         break;
       }
     }
 
-    // Fallback: wenn Header nicht gefunden, simpel nach Y joinen (ohne Pipe)
+    // wenn Header nicht gefunden: alles Zeilen-weise zurück
     if (headerY === null){
       const out = [];
       for (const yKey of yKeys){
@@ -867,19 +885,22 @@ USt-IdNr. CHE-106.003.397 MWST`;
     }
 
     const xDate   = findX(/^Date$/i) ?? 0;
-    const xVAT    = findX(/^VAT$/i) ?? (xDate + 40);
-    const xDesc   = findX(/^Description$/i) ?? (xVAT + 40);
+    const xVAT    = findX(/^VAT$/i); // optional
+    const xDesc   = findX(/^Description$/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
     const xQty    = findX(/^Qty\.?$/i) ?? (xDesc + 220);
     const xDebit  = findX(/^Debit$/i) ?? (xQty + 60);
     const xCredit = findX(/^Credit$/i) ?? (xDebit + 80);
 
+    // wenn VAT nicht da, setze "virtuell" zwischen Date und Description
+    const xVatResolved = (xVAT ?? ((xDate + xDesc) / 2));
+
     const bounds = [
-      { key:"date",   left:-Infinity,            right:(xVAT + xDate)/2 },
-      { key:"vat",    left:(xVAT + xDate)/2,     right:(xDesc + xVAT)/2 },
-      { key:"desc",   left:(xDesc + xVAT)/2,     right:(xQty + xDesc)/2 },
-      { key:"qty",    left:(xQty + xDesc)/2,     right:(xDebit + xQty)/2 },
-      { key:"debit",  left:(xDebit + xQty)/2,    right:(xCredit + xDebit)/2 },
-      { key:"credit", left:(xCredit + xDebit)/2, right:Infinity },
+      { key:"date",   left:-Infinity,                 right:(xVatResolved + xDate)/2 },
+      { key:"vat",    left:(xVatResolved + xDate)/2,  right:(xDesc + xVatResolved)/2 },
+      { key:"desc",   left:(xDesc + xVatResolved)/2,  right:(xQty + xDesc)/2 },
+      { key:"qty",    left:(xQty + xDesc)/2,          right:(xDebit + xQty)/2 },
+      { key:"debit",  left:(xDebit + xQty)/2,         right:(xCredit + xDebit)/2 },
+      { key:"credit", left:(xCredit + xDebit)/2,      right:Infinity },
     ];
 
     function bucketKey(x){
@@ -915,19 +936,17 @@ USt-IdNr. CHE-106.003.397 MWST`;
     }
 
     const outLines = [];
-
     for (const yKey of yKeys){
-      if (yKey >= headerY) continue; // nur unter Header
+      if (yKey >= headerY) continue;
 
       const row = rows.get(yKey).slice();
       const buckets = { date:[], vat:[], desc:[], qty:[], debit:[], credit:[] };
-
       for (const it of row){
-        const k = bucketKey(it.x);
-        buckets[k].push(it);
+        buckets[bucketKey(it.x)].push(it);
       }
 
-      const date   = joinParts(buckets.date);
+      const date = joinParts(buckets.date);
+      // akzeptiere dd.mm.yyyy und dd.mm.yy
       if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
 
       const vat    = joinParts(buckets.vat);
@@ -936,8 +955,8 @@ USt-IdNr. CHE-106.003.397 MWST`;
       const debit  = joinParts(buckets.debit);
       const credit = joinParts(buckets.credit);
 
-      const line = [date, vat, desc, qty, debit, credit].join(" | ").trim();
-      if (line) outLines.push(line);
+      // Pipe-Format: date | vat | desc | qty | debit | credit
+      outLines.push([date, vat, desc, qty, debit, credit].join(" | ").trim());
     }
 
     return outLines.join("\n");
@@ -1000,7 +1019,6 @@ USt-IdNr. CHE-106.003.397 MWST`;
     if (!state.items[i]) return;
 
     let vv = el.value;
-
     if (["qty","unit","debit","credit","vatRate"].includes(k)){
       if (String(vv).trim() === "") state.items[i][k] = "";
       else state.items[i][k] = toNumber(vv);
@@ -1165,8 +1183,9 @@ USt-IdNr. CHE-106.003.397 MWST`;
     setText("p_totalCredit", fmt(totalCredit));
     setText("p_balance", fmt(balance));
 
-    // FIX: Gelb markierte Fußzeile IMMER aus Konstante
-    setText("p_legalFooter", FIXED_LEGAL_FOOTER);
+    // FIXED Footer links/rechts
+    setText("p_legalLeft", FIXED_FOOTER_LEFT);
+    setText("p_legalRight", FIXED_FOOTER_RIGHT);
   }
 
   const headerInputs = [
@@ -1174,7 +1193,6 @@ USt-IdNr. CHE-106.003.397 MWST`;
     "buyerName","buyerAddressBlock","reference",
     "invoiceNo","invoiceDate","currency",
     "arrival","departure","roomReservation"
-    // legalFooter raus, da fix
   ];
   headerInputs.forEach(id => {
     document.getElementById(id).addEventListener("input", recalc);
@@ -1279,80 +1297,6 @@ USt-IdNr. CHE-106.003.397 MWST`;
   });
 
   // -----------------------------
-  // JSON Import/Export
-  // -----------------------------
-  document.getElementById("exportJsonBtn").addEventListener("click", () => {
-    const data = collectFormData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `invoice_editor_${(data.invoiceNo || "export")}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  });
-
-  document.getElementById("importJson").addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    const data = JSON.parse(text);
-    applyFormData(data);
-    e.target.value = "";
-  });
-
-  function collectFormData(){
-    return {
-      sellerName: v("sellerName"),
-      sellerContact: v("sellerContact"),
-      sellerExtra: v("sellerExtra"),
-      sellerAddressBlock: v("sellerAddressBlock"),
-
-      buyerName: v("buyerName"),
-      buyerAddressBlock: v("buyerAddressBlock"),
-
-      reference: v("reference"),
-      invoiceNo: v("invoiceNo"),
-      invoiceDate: v("invoiceDate"),
-      currency: v("currency"),
-      arrival: v("arrival"),
-      departure: v("departure"),
-      roomReservation: v("roomReservation"),
-
-      // FIX: legalFooter bleibt im Export (damit JSON komplett ist),
-      // aber immer aus Konstante.
-      legalFooter: FIXED_LEGAL_FOOTER,
-
-      items: state.items
-    };
-  }
-
-  function applyFormData(d){
-    if (!d) return;
-
-    setV("sellerName", d.sellerName ?? "");
-    setV("sellerContact", d.sellerContact ?? "");
-    setV("sellerExtra", d.sellerExtra ?? "");
-    setV("sellerAddressBlock", d.sellerAddressBlock ?? "");
-
-    setV("buyerName", d.buyerName ?? "");
-    setV("buyerAddressBlock", d.buyerAddressBlock ?? "");
-
-    setV("reference", d.reference ?? "");
-    setV("invoiceNo", d.invoiceNo ?? "");
-    setV("invoiceDate", d.invoiceDate ?? "");
-    setV("currency", d.currency ?? "CHF");
-    setV("arrival", d.arrival ?? "");
-    setV("departure", d.departure ?? "");
-    setV("roomReservation", d.roomReservation ?? "");
-
-    // FIX: immer Konstante (egal was im JSON steht)
-    setV("legalFooter", FIXED_LEGAL_FOOTER);
-
-    state.items = Array.isArray(d.items) ? d.items : [];
-    renderItems();
-  }
-
-  // -----------------------------
   // PDF Import (Text Extraction)
   // -----------------------------
   const pdfFileInput = document.getElementById("pdfFile");
@@ -1404,7 +1348,7 @@ USt-IdNr. CHE-106.003.397 MWST`;
       const parsed = parseInvoiceFromText(fullText);
 
       if (parsed){
-        applyFormData(parsed);
+        applyParsed(parsed);
         setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
       } else {
         setPill("importPill", `<b>Import:</b> nichts erkannt`, "warn");
@@ -1439,7 +1383,7 @@ USt-IdNr. CHE-106.003.397 MWST`;
 
     const parsed = parseInvoiceFromText(normalizeText(txt));
     if (parsed){
-      applyFormData(parsed);
+      applyParsed(parsed);
       setPill("importPill", "<b>Import:</b> Text-Fallback ✓", "ok");
     } else {
       setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
@@ -1447,90 +1391,154 @@ USt-IdNr. CHE-106.003.397 MWST`;
     }
   });
 
-  // -----------------------------
-  // Parser (Fix für DEINEN Text + robust für Pipe-Spalten)
-  // -----------------------------
+  function applyParsed(d){
+    if (!d) return;
+
+    // nur setzen, wenn vorhanden (damit man manuell überschreiben kann)
+    if (d.sellerName) setV("sellerName", d.sellerName);
+    if (d.sellerContact) setV("sellerContact", d.sellerContact);
+    if (d.sellerExtra) setV("sellerExtra", d.sellerExtra);
+    if (d.sellerAddressBlock) setV("sellerAddressBlock", d.sellerAddressBlock);
+
+    if (d.buyerName) setV("buyerName", d.buyerName);
+    if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
+
+    if (d.reference) setV("reference", d.reference);
+
+    if (d.invoiceNo) setV("invoiceNo", d.invoiceNo);
+    if (d.invoiceDate) setV("invoiceDate", d.invoiceDate);
+    if (d.currency) setV("currency", d.currency);
+
+    if (d.arrival) setV("arrival", d.arrival);
+    if (d.departure) setV("departure", d.departure);
+    if (d.roomReservation) setV("roomReservation", d.roomReservation);
+
+    if (Array.isArray(d.items)) state.items = d.items;
+    renderItems();
+  }
+
+  // =============================================================
+  // 2) Import-Parser (robuster: Room/Reservation, From/To Blöcke,
+  //    bessere Item-Zeilen-Erkennung)
+  // =============================================================
   function parseInvoiceFromText(text){
-    const out = collectFormData();
-    const t = text || "";
+    const t = (text || "");
     const upper = t.toUpperCase();
+    const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
+
+    const out = {
+      sellerName: "",
+      sellerContact: "",
+      sellerExtra: "",
+      sellerAddressBlock: "",
+      buyerName: "",
+      buyerAddressBlock: "",
+      reference: "",
+      invoiceNo: "",
+      invoiceDate: "",
+      currency: "",
+      arrival: "",
+      departure: "",
+      roomReservation: "",
+      items: []
+    };
 
     const pick = (re) => {
       const m = t.match(re);
       return m ? (m[1] ?? "").trim() : "";
     };
 
-    // Kopf-Felder
-    const invNo = pick(/\bInvoice\s*No\.?\s*([A-Z0-9\-\/]{3,})/i) || pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{3,})/i);
-    const invDate = pick(/\bDate\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})/i);
-    const arrival = pick(/\bArrival\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})/i);
-    const departure = pick(/\bDeparture\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})/i);
+    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
 
-    const roomNo = pick(/\bRoom\s*No\.?\s*([A-Z0-9\-\/]+)/i);
-    const resNo  = pick(/\bReservation\s*No\.?\s*([A-Z0-9\-\/]+)/i);
+    // --- Header fields (sehr tolerant) ---
+    out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) || pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
 
-    let currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
-    if (!currency){
+    // Date / Arrival / Departure: dd.mm.yyyy oder dd/mm/yyyy
+    out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
+    out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
+    out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
+
+    if (out.invoiceDate) out.invoiceDate = normDate(out.invoiceDate);
+    if (out.arrival) out.arrival = normDate(out.arrival);
+    if (out.departure) out.departure = normDate(out.departure);
+
+    // Currency
+    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
+    if (!out.currency){
       const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
-      if (m) currency = m[1];
+      if (m) out.currency = m[1];
     }
 
-    // Default VAT rate aus "VAT 3.8%"
-    const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
-    const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
-
-    if (invNo) out.invoiceNo = invNo;
-    if (invDate) out.invoiceDate = invDate.replace(/\//g,".");
-    if (arrival) out.arrival = arrival.replace(/\//g,".");
-    if (departure) out.departure = departure.replace(/\//g,".");
-    if (currency) out.currency = currency;
-
-    if (roomNo || resNo){
-      out.roomReservation = [
-        roomNo ? `Room ${roomNo}` : "",
-        resNo ? `Reservation ${resNo}` : ""
-      ].filter(Boolean).join(" | ");
+    // Room / Reservation (passt zu deinem ibis Layout)
+    // z.B. "Room 9298 | Reservation 595951871079" oder "Room 9298 Reservation 595..."
+    const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
+    if (roomRes1) out.roomReservation = roomRes1;
+    if (!out.roomReservation){
+      const rm = pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
+      const rs = pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
+      if (rm || rs){
+        out.roomReservation = [rm ? `Room ${rm}` : "", rs ? `Reservation ${rs}` : ""].filter(Boolean).join(" | ");
+      }
     }
 
-    // Adressen aus deinem Text (fix)
-    (function parseAddressBlocks(){
-      const lines = t.split("\n").map(s=>s.trim()).filter(Boolean);
+    // Reference (falls vorhanden)
+    out.reference = pick(/\bReference\s*[:\-]?\s*(.+)$/im);
 
-      const invoiceIdx = lines.findIndex(l => /^INVOICE$/i.test(l));
-      if (invoiceIdx > 0){
-        const buyerBlock = lines.slice(0, invoiceIdx).join("\n").trim();
-        if (buyerBlock){
-          const buyerLines = buyerBlock.split("\n").map(s=>s.trim()).filter(Boolean);
-          out.buyerName = buyerLines[0] || out.buyerName;
-          out.buyerAddressBlock = buyerLines.slice(1).join("\n").trim();
+    // --- From / To Blocks (wenn im Text vorhanden) ---
+    // Wir nehmen zuerst "From ... To ..." Blöcke, weil das am zuverlässigsten ist.
+    (function parseFromTo(){
+      const idxFrom = lines.findIndex(l => /^From$/i.test(l));
+      const idxTo   = lines.findIndex(l => /^To$/i.test(l));
+      const idxRef  = lines.findIndex(l => /^Reference$/i.test(l));
+      const idxTbl  = lines.findIndex(l => /^Date\s+VAT\s+Description/i.test(l) || /^Date\s+Description/i.test(l));
+
+      // Seller block
+      if (idxFrom >= 0){
+        const end = (idxTo > idxFrom ? idxTo : (idxRef > idxFrom ? idxRef : (idxTbl > idxFrom ? idxTbl : Math.min(lines.length, idxFrom+10))));
+        const block = lines.slice(idxFrom+1, end).filter(Boolean).join("\n").trim();
+        if (block){
+          const bl = block.split("\n").map(s=>s.trim()).filter(Boolean);
+          out.sellerName = bl[0] || out.sellerName;
+          out.sellerAddressBlock = bl.slice(1).join("\n").trim() || out.sellerAddressBlock;
         }
       }
 
-      const sellerStart = lines.findIndex(l => /ibis\s+zurich\s+messe\s+airport/i.test(l));
-      const headerIdx = lines.findIndex(l => /^Date\s+VAT\s+Description/i.test(l));
+      // Buyer block
+      if (idxTo >= 0){
+        const end = (idxRef > idxTo ? idxRef : (idxTbl > idxTo ? idxTbl : Math.min(lines.length, idxTo+14)));
+        const block = lines.slice(idxTo+1, end).filter(Boolean).join("\n").trim();
+        if (block){
+          const bl = block.split("\n").map(s=>s.trim()).filter(Boolean);
+          out.buyerName = bl[0] || out.buyerName;
+          out.buyerAddressBlock = bl.slice(1).join("\n").trim() || out.buyerAddressBlock;
+        }
+      }
 
-      if (sellerStart >= 0){
-        const end = headerIdx > sellerStart ? headerIdx : Math.min(lines.length, sellerStart + 12);
-        const sellerLines = lines.slice(sellerStart, end).filter(l => !/management\s+switzerland/i.test(l) && !/essendi/i.test(l));
-        if (sellerLines.length){
-          out.sellerName = sellerLines[0];
-          let addr = sellerLines.slice(1).join("\n").trim();
-
-          if (/CH-8050\s*$/i.test(addr)) addr += "\nZURICH";
-          if (!/switzerland/i.test(addr)) addr += "\nSwitzerland";
-
-          out.sellerAddressBlock = addr.trim();
+      // Reference value under "Reference" line (wenn layout so ist)
+      if (idxRef >= 0){
+        const maybe = lines[idxRef+1] || "";
+        if (maybe && !/^Date\s+/i.test(maybe) && maybe.length < 120){
+          out.reference = out.reference || maybe;
         }
       }
     })();
 
-    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
+    // Fallback Seller/Buyer if still empty (typisch bei "rohem" Text)
+    if (!out.sellerName){
+      const sIdx = lines.findIndex(l => /ibis\s+zurich\s+messe\s+airport/i.test(l));
+      if (sIdx >= 0){
+        out.sellerName = lines[sIdx];
+        out.sellerAddressBlock = lines.slice(sIdx+1, sIdx+6).join("\n");
+      }
+    }
+
+    // --- Items ---
+    // Default VAT rate from any "VAT x%" in doc
+    const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
+    const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
+
     const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
     const isCityTaxDesc = (desc) => /(city\s*tax|tourist\s*tax|taxe\s*de\s*s[eé]jour|kurtaxe)/i.test(desc);
-
-    // ---------- Items: A) Pipe-Spalten (vom PDF Import) ----------
-    const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
-    const items = [];
 
     function parseMoneyCell(s){
       const raw = String(s || "").trim();
@@ -1542,25 +1550,42 @@ USt-IdNr. CHE-106.003.397 MWST`;
       return n;
     }
 
+    // A) Pipe-Format (aus PDF Extractor)
+    const items = [];
     for (const line of lines){
       if (!line.includes("|")) continue;
-
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
-      if (parts.length < 4) continue;
 
-      const date = parts[0];
+      // Erwartet: date | vat | desc | qty | debit | credit
+      const date = parts[0] || "";
       if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
 
-      const desc = parts[2] || "";
-      const qtyCell = parts[3] || "";
-      const debitCell = parts[4] || "";
-      const creditCell = parts[5] || "";
+      // robustes Mapping:
+      // wenn VAT fehlt, kann parts[1] desc sein -> dann verschieben
+      let vatCell = parts[1] ?? "";
+      let descCell = parts[2] ?? "";
+      let qtyCell = parts[3] ?? "";
+      let debitCell = parts[4] ?? "";
+      let creditCell = parts[5] ?? "";
 
-      const qty = /^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "";
+      // Heuristik: VAT ist typischerweise wie "3.8%" oder "3,8%" oder leer.
+      const looksLikeVat = (s) => !s ? true : /^[0-9]+([.,][0-9]+)?%?$/.test(s);
+      if (!looksLikeVat(vatCell) && looksLikeVat(descCell)){
+        // shift left (VAT fehlt)
+        descCell = vatCell;
+        qtyCell = parts[2] ?? "";
+        debitCell = parts[3] ?? "";
+        creditCell = parts[4] ?? "";
+        vatCell = "";
+      }
+
+      const desc = descCell || "";
+      const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
 
       let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
       let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
 
+      // Negative debit => credit
       if (debitVal !== "" && debitVal < 0){
         creditVal = Math.abs(debitVal);
         debitVal = "";
@@ -1583,18 +1608,16 @@ USt-IdNr. CHE-106.003.397 MWST`;
       });
     }
 
-    // ---------- Items: B) Dein Fallback-Text (ohne Pipes) ----------
+    // B) Fallback ohne Pipes (dd.mm.yy + text + qty + amount)
     if (items.length === 0){
-      const lineRe = /^(\d{2}\.\d{2}\.\d{2})\s+(.*?)\s+(\d{1,6})\s*([\-]?\d[\d.,']*)\s*$/;
-
+      const lineRe = /^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.*?)\s+(\d{1,6})\s*([\-]?\(?\d[\d.,']*\)?)\s*$/;
       for (const ln of lines){
         const m = ln.match(lineRe);
         if (!m) continue;
-
         const date = m[1];
         const desc = (m[2] || "").trim();
         const qty = toNumber(m[3]);
-        const amount = toNumber(m[4]);
+        const amount = parseMoneyCell(m[4]);
 
         const creditLike = isCreditDesc(desc);
         const city = isCityTaxDesc(desc);
@@ -1613,10 +1636,13 @@ USt-IdNr. CHE-106.003.397 MWST`;
       }
     }
 
-    if (items.length) out.items = items;
+    out.items = items;
 
+    // mindestens etwas erkannt?
     const hasAnything =
-      !!out.invoiceNo || !!out.invoiceDate || (out.items && out.items.length > 0);
+      !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
+      !!out.roomReservation || (out.items && out.items.length > 0) ||
+      !!out.buyerName || !!out.sellerName;
 
     return hasAnything ? out : null;
   }
@@ -1629,10 +1655,7 @@ USt-IdNr. CHE-106.003.397 MWST`;
     setPill("importPill", "<b>Import:</b> bereit", "");
     setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
 
-    // FIX: Footer-Feld mit Konstante füllen (readonly)
-    setV("legalFooter", FIXED_LEGAL_FOOTER);
-
-    // Startzustand leer
+    // Startzustand
     state.items = [];
     renderItems();
     recalc();
