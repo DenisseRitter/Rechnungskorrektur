@@ -1,4 +1,3 @@
-```html
 <!doctype html>
 <html lang="de">
 <head>
@@ -351,7 +350,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">PDF-Import verbessert. Verkäuferadresse ist FIX (nicht editierbar). Kunde nur als „Adresse Kunde“.</span>
+      <span class="hint">PDF-Import verbessert. Verkäuferadresse ist FIX (nicht editierbar). Credit-Zeilen sind beim Import automatisch ohne MwSt.</span>
     </div>
 
     <div class="bd">
@@ -440,7 +439,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Positionen</strong>
-          <span class="hint">MwSt wird beim Import direkt gesetzt. Payments (Deposit/Visa/Master/Amex) sind automatisch ohne MwSt.</span>
+          <span class="hint">Regel: Credit-Beträge werden beim Import standardmäßig ohne MwSt gesetzt (MwSt? = Nein).</span>
         </div>
         <div class="bd" style="padding:0;">
           <div style="max-height:340px; overflow:auto;">
@@ -490,7 +489,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>MwSt-Aufschlüsselung (pro Satz)</strong>
-          <span class="hint">Steuerbasis je Satz = Summe steuerbarer Zeilen (Debit − Credit).</span>
+          <span class="hint">Steuerbasis je Satz = Summe steuerbarer Zeilen (Debit − Credit). Credit-Zeilen sind beim Import standardmäßig nicht steuerbar.</span>
         </div>
         <div class="bd">
           <table id="vatBreakdownTable">
@@ -767,7 +766,7 @@ CH-8050`;
   }
 
   // -----------------------------
-  // VAT / Payment Heuristics
+  // Rules
   // -----------------------------
   function isPaymentDesc(desc){
     const d = String(desc || "").toLowerCase();
@@ -796,6 +795,12 @@ CH-8050`;
       d.includes("city tax") ||
       d.includes("city taxe")
     );
+  }
+
+  // NEU: Credit-Zeilen beim Import grundsätzlich ohne MwSt
+  function creditShouldDisableVat(item){
+    const credit = (item.credit === "" ? 0 : toNumber(item.credit));
+    return credit > 0;
   }
 
   // -----------------------------
@@ -873,7 +878,6 @@ CH-8050`;
       }
     }
 
-    // Wenn Header nicht gefunden: einfach ganze Seite als Text.
     if (headerY === null){
       const out = [];
       for (const yKey of yKeys){
@@ -1159,9 +1163,7 @@ CH-8050`;
     const sellerBlock = [ v("sellerName"), v("sellerAddressBlock"), v("sellerContact"), v("sellerExtra") ].filter(Boolean).join("\n");
     setText("p_seller", sellerBlock);
 
-    // Kunde: nur ein Feld
     setText("p_buyer", (v("buyerAddressBlock") || "").trim());
-
     setText("p_reference", v("reference") || "—");
 
     const pItems = document.getElementById("p_items");
@@ -1262,9 +1264,10 @@ CH-8050`;
   // PARSER:
   // - Niemals Seller-Felder überschreiben (bleiben FIX)
   // - Kunde: komplette Adresse in buyerAddressBlock (eine Box)
-  // - MwSt direkt beim Import setzen:
-  //   - Standard: vatEnabled=true, vatRate=3.8
-  //   - Payments (Deposit/Visa/Master/Amex): vatEnabled=false, vatRate=0
+  // - MwSt beim Import:
+  //   - WENN Credit > 0 => vatEnabled=false (wie im Screenshot gelb)
+  //   - Payments (Deposit/Visa/Master/Amex) ebenfalls vatEnabled=false
+  //   - Sonst vatEnabled=true mit vatRate=3.8 (oder aus VAT %)
   // - Negative Beträge bei City Tax / Accommodation / Manual... bleiben im Debit (negativ)
   // =============================================================
   function parseInvoiceFromText(text){
@@ -1317,13 +1320,11 @@ CH-8050`;
       }
     }
 
-    // Gastname / Reference aus dem Original (Guest Name / Reference)
     out.reference =
       pick(/\bGuest\s*Name\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
       pick(/\bReference\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
       pick(/\bGastname\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
 
-    // Default VAT rate aus "VAT 3.8%"
     const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
 
@@ -1337,14 +1338,8 @@ CH-8050`;
       return n;
     }
 
-    // -------------------------
-    // Buyer address extraction (Original ibis PDF hat i.d.R. KEIN "To")
-    // Strategie:
-    // 1) Suche Block mit "TVA:" oder "VAT:" (spanische Adresse) und nimm 1-2 Zeilen davor + danach
-    // 2) Falls "To" existiert (bei anderem Layout), nutze das
-    // -------------------------
+    // Buyer Address heuristics
     (function parseBuyerAddress(){
-      // A) Wenn "To" existiert
       const idxTo = lines.findIndex(l => /^To$/i.test(l));
       if (idxTo >= 0){
         const end = Math.min(lines.length, idxTo + 12);
@@ -1352,17 +1347,14 @@ CH-8050`;
         if (block) { out.buyerAddressBlock = block; return; }
       }
 
-      // B) Heuristik: finde Zeile mit TVA/VAT Nummer
       const idxTax = lines.findIndex(l => /\b(TVA|VAT)\b\s*[:]/i.test(l));
       if (idxTax >= 0){
-        // nimm bis zu 2 Zeilen darüber (Firma/Adresse), und bis zu 3 darunter (PLZ/Stadt/Land)
         const start = Math.max(0, idxTax - 2);
         const end = Math.min(lines.length, idxTax + 4);
         const block = lines.slice(start, end).join("\n").trim();
         if (block) { out.buyerAddressBlock = block; return; }
       }
 
-      // C) Fallback: suche bekannte Firma (z.B. S.L.) und nimm Block bis zur nächsten klaren Sektion (INVOICE / Invoice No / Date)
       const idxSL = lines.findIndex(l => /\bS\.L\.\b/i.test(l) || /TOUR\s+OPERATOR/i.test(l));
       if (idxSL >= 0){
         let end = idxSL + 1;
@@ -1380,10 +1372,9 @@ CH-8050`;
       }
     })();
 
-    // -------------------------
-    // Items (A) Pipe-Spalten
-    // -------------------------
     const items = [];
+
+    // A) Pipe lines
     for (const line of lines){
       if (!line.includes("|")) continue;
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
@@ -1401,8 +1392,6 @@ CH-8050`;
       let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
       let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
 
-      // Regel: wenn debit negativ und KEIN credit: normalerweise würde man es in Credit schieben,
-      // aber bei Accommodation/Manual/CityTax soll es NEGATIV im Debit bleiben.
       if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
         if (!keepNegativeInDebit(desc)){
           creditVal = Math.abs(debitVal);
@@ -1410,25 +1399,31 @@ CH-8050`;
         }
       }
 
-      const payment = isPaymentDesc(desc);
-
-      items.push({
+      const baseItem = {
         date: normDate(date),
         desc,
         qty: qty === "" ? "" : qty,
         unit: "",
-        debit: (debitVal === "" ? "" : debitVal),         // kann negativ sein
+        debit: (debitVal === "" ? "" : debitVal),
         credit: (creditVal === "" ? "" : Math.abs(creditVal)),
-        vatRate: payment ? 0 : defaultRate,
-        vatEnabled: payment ? false : true
-      });
+        vatRate: defaultRate,
+        vatEnabled: true
+      };
+
+      // RULES: credit rows => no VAT; payments => no VAT
+      const payment = isPaymentDesc(desc);
+      const creditRow = creditShouldDisableVat(baseItem);
+
+      if (payment || creditRow){
+        baseItem.vatEnabled = false;
+        baseItem.vatRate = 0;
+      }
+
+      items.push(baseItem);
     }
 
-    // -------------------------
-    // Items (B) Text-Fallback (ohne Pipes)
-    // -------------------------
+    // B) Non-pipe fallback
     if (items.length === 0){
-      // Beispiel: 02.01.26 City Tax 51 178.50
       const lineRe = /^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.*?)\s+(\d{1,6})\s*([\-]?\(?\d[\d.,']*\)?)\s*$/;
       for (const ln of lines){
         const m = ln.match(lineRe);
@@ -1441,33 +1436,41 @@ CH-8050`;
 
         const payment = isPaymentDesc(desc);
 
+        let item = null;
+
         if (amount < 0 && keepNegativeInDebit(desc)){
-          items.push({
+          item = {
             date: normDate(date),
             desc,
             qty,
             unit: "",
-            debit: amount,   // keep negative
+            debit: amount,
             credit: "",
-            vatRate: payment ? 0 : defaultRate,
-            vatEnabled: payment ? false : true
-          });
-          continue;
+            vatRate: defaultRate,
+            vatEnabled: true
+          };
+        } else {
+          const negative = amount < 0;
+          item = {
+            date: normDate(date),
+            desc,
+            qty,
+            unit: "",
+            debit: (!negative) ? Math.abs(amount) : "",
+            credit: (negative) ? Math.abs(amount) : "",
+            vatRate: defaultRate,
+            vatEnabled: true
+          };
         }
 
-        const negative = amount < 0;
+        // RULES: credit rows => no VAT; payments => no VAT
+        const creditRow = creditShouldDisableVat(item);
+        if (payment || creditRow){
+          item.vatEnabled = false;
+          item.vatRate = 0;
+        }
 
-        // Standard: negative -> credit, außer keepNegativeInDebit
-        items.push({
-          date: normDate(date),
-          desc,
-          qty,
-          unit: "",
-          debit: (!negative) ? Math.abs(amount) : "",
-          credit: (negative) ? Math.abs(amount) : "",
-          vatRate: payment ? 0 : defaultRate,
-          vatEnabled: payment ? false : true
-        });
+        items.push(item);
       }
     }
 
@@ -1587,11 +1590,9 @@ CH-8050`;
     renderItems();
     recalc();
 
-    // fixed footer
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   })();
 </script>
 </body>
 </html>
-```
