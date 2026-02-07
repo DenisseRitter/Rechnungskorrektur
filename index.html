@@ -3,20 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export (Fix Footer + Logo + Import)</title>
-
-  <style>
-    :root{
-      --ink:#111;
-      --muted:#666;
-      --line:#d9d9d9;
-      --bg:#fafafa;
-      --card:#fff;
-      --accent:#1d4ed8;<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export</title>
 
   <style>
@@ -124,10 +110,7 @@
       font: inherit;
     }
     .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    .toggle{
-      display:flex; align-items:center; justify-content:center;
-      gap:6px;
-    }
+    .toggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
     .toggle input{ transform: scale(1.05); }
 
     .hint{ font-size:11px; color:var(--muted); }
@@ -197,7 +180,7 @@
 
     .brandRow{
       display:grid;
-      grid-template-columns: 460px 1fr; /* LOGO noch größer */
+      grid-template-columns: 340px 1fr; /* groß, aber nicht übertrieben */
       gap:14px;
       align-items:start;
     }
@@ -205,10 +188,10 @@
       .brandRow{ grid-template-columns: 1fr; }
     }
 
-    /* LOGO: größer + klar */
+    /* LOGO: maximal groß ohne Deformation */
     .logoBox{
-      width:460px;
-      height:220px;
+      width:340px;
+      height:170px;
       border:1px solid #e6e6e6;
       border-radius:16px;
       display:flex;
@@ -217,11 +200,13 @@
       overflow:hidden;
       background:#fff;
       box-shadow: 0 2px 10px rgba(0,0,0,.06);
-      padding:14px;
+      padding:12px;
     }
     .logoBox img{
-      width:100%;
-      height:100%;
+      max-width:100%;
+      max-height:100%;
+      width:auto;      /* wichtig: nicht auf 100% zwingen */
+      height:auto;     /* wichtig: nicht auf 100% zwingen */
       object-fit:contain;
       display:block;
     }
@@ -236,11 +221,7 @@
     }
     .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
 
-    .meta{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:8px;
-    }
+    .meta{ display:grid; grid-template-columns: 1fr; gap:8px; }
     .meta .kv{
       display:flex;
       justify-content:space-between;
@@ -292,9 +273,7 @@
       border-radius:12px;
       padding:10px;
     }
-    .paperTotals .line{
-      display:flex; justify-content:space-between; gap:10px; padding:4px 0;
-    }
+    .paperTotals .line{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; }
     .paperTotals .line b{ font-weight:900; }
 
     .paperVat{
@@ -303,7 +282,6 @@
       padding:10px;
     }
 
-    /* FOOTER: 2 Spalten (links/rechts fix) */
     .paperLegal{
       margin-top:12px;
       border-top:1px solid #eee;
@@ -347,9 +325,7 @@
     <label class="btn primary" for="pdfFile">PDF importieren</label>
     <input id="pdfFile" type="file" accept="application/pdf" />
 
-    <button class="btn" id="manualImportBtn" type="button" title="Fallback, wenn PDF.js blockiert ist">
-      Import per Text (Fallback)
-    </button>
+    <button class="btn" id="manualImportBtn" type="button">Import per Text (Fallback)</button>
 
     <button class="btn" id="addRowBtn" type="button">+ Position</button>
 
@@ -362,7 +338,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">PDF-Import verbessert. Verkäuferadresse ist FIX (nicht editierbar).</span>
+      <span class="hint">Nur „Adresse Kunde“ (inkl. Name) wird importiert. Verkäuferadresse ist FIX.</span>
     </div>
 
     <div class="bd">
@@ -394,20 +370,13 @@ Switzerland</textarea>
 
       <div class="grid2">
         <div>
-          <label>Kunde</label>
-          <input id="buyerName" class="field" value="" />
+          <label>Adresse Kunde (ein Feld) – inkl. Name/Firma</label>
+          <textarea id="buyerAddressBlock" class="field"></textarea>
         </div>
         <div>
           <label>Referenz / Gastname</label>
           <input id="reference" class="field" value="" />
         </div>
-      </div>
-
-      <div style="height:10px;"></div>
-
-      <div>
-        <label>Adresse Kunde (ein Feld)</label>
-        <textarea id="buyerAddressBlock" class="field"></textarea>
       </div>
 
       <div style="height:14px;"></div>
@@ -448,9 +417,7 @@ Switzerland</textarea>
         <span class="statusPill" id="importPill"><b>Import:</b> —</span>
         <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
         <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
-        <span class="hint" id="importHint">
-          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen (PDF öffnen → Text markieren → kopieren → einfügen).
-        </span>
+        <span class="hint">Falls PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen.</span>
       </div>
 
       <div style="height:14px;"></div>
@@ -629,9 +596,7 @@ Switzerland</textarea>
       </div>
 
       <div class="noPrint" style="margin-top:10px;">
-        <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
-        </div>
+        <div class="hint">Für PDF: entweder „Drucken“ oder „Finale PDF exportieren“.</div>
       </div>
 
       <div style="height:14px;"></div>
@@ -639,7 +604,7 @@ Switzerland</textarea>
       <details class="card" style="border-radius:12px;">
         <summary class="hd">
           <strong>Import-Text (Debug) anzeigen</strong>
-          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
+          <span class="hint">Text aus dem PDF (oder Fallback) – nur zur Kontrolle.</span>
         </summary>
         <div class="bd">
           <label>Ausgelesener / eingefügter Text</label>
@@ -669,7 +634,7 @@ Heidi Abel-Weg 5
 CH-8050`;
 
   // -----------------------------
-  // CDN Kandidaten (mehrere Quellen)
+  // CDN Kandidaten
   // -----------------------------
   const LIBS = {
     pdfjs: [
@@ -785,7 +750,7 @@ CH-8050`;
   }
 
   // -----------------------------
-  // PDF.js On-Demand Loader
+  // PDF.js Loader
   // -----------------------------
   async function ensurePdfJsReady(){
     if (window.pdfjsLib) return true;
@@ -807,7 +772,6 @@ CH-8050`;
         setPill("workerPill", "<b>PDF.js:</b> geladen (ohne Worker)", "warn");
       }
     } catch (e){
-      console.warn("Worker set failed:", e);
       setPill("workerPill", "<b>PDF.js:</b> geladen (Fallback)", "warn");
     }
     return true;
@@ -881,7 +845,6 @@ CH-8050`;
     const xQty    = findX(/^Qty\.?$/i) ?? (xDesc + 220);
     const xDebit  = findX(/^Debit$/i) ?? (xQty + 60);
     const xCredit = findX(/^Credit$/i) ?? (xDebit + 80);
-
     const xVatResolved = (xVAT ?? ((xDate + xDesc) / 2));
 
     const bounds = [
@@ -951,7 +914,7 @@ CH-8050`;
   }
 
   // -----------------------------
-  // Export libs On-Demand Loader
+  // Export libs loader
   // -----------------------------
   async function ensureExportLibs(){
     if (!window.html2canvas){
@@ -968,7 +931,7 @@ CH-8050`;
   }
 
   // -----------------------------
-  // Items table render
+  // Items table
   // -----------------------------
   const tbody = document.querySelector("#itemsTable tbody");
 
@@ -983,9 +946,7 @@ CH-8050`;
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.unit ?? "")}" data-k="unit" data-i="${idx}" inputmode="decimal"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.debit ?? "")}" data-k="debit" data-i="${idx}" inputmode="decimal"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.credit ?? "")}" data-k="credit" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num">
-          <input class="rowinput right mono" value="${escapeHtml(it.vatRate ?? 0)}" data-k="vatRate" data-i="${idx}" inputmode="decimal">
-        </td>
+        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.vatRate ?? 0)}" data-k="vatRate" data-i="${idx}" inputmode="decimal"></td>
         <td class="toggle">
           <label style="margin:0;display:flex;align-items:center;gap:6px;">
             <input type="checkbox" ${it.vatEnabled ? "checked":""} data-k="vatEnabled" data-i="${idx}">
@@ -1008,8 +969,7 @@ CH-8050`;
 
     const vv = el.value;
     if (["qty","unit","debit","credit","vatRate"].includes(k)){
-      if (String(vv).trim() === "") state.items[i][k] = "";
-      else state.items[i][k] = toNumber(vv);
+      state.items[i][k] = (String(vv).trim() === "") ? "" : toNumber(vv);
     } else {
       state.items[i][k] = vv;
     }
@@ -1022,7 +982,6 @@ CH-8050`;
     const i = parseInt(el.dataset.i, 10);
     const k = el.dataset.k;
     if (!state.items[i]) return;
-
     if (k === "vatEnabled"){
       state.items[i].vatEnabled = !!el.checked;
       recalc();
@@ -1144,8 +1103,8 @@ CH-8050`;
     const sellerBlock = [ v("sellerName"), v("sellerAddressBlock"), v("sellerContact"), v("sellerExtra") ].filter(Boolean).join("\n");
     setText("p_seller", sellerBlock);
 
-    const buyerBlock = [ v("buyerName"), v("buyerAddressBlock") ].filter(Boolean).join("\n");
-    setText("p_buyer", buyerBlock);
+    // ✅ Kunde: nur 1 Feld – so wie im PDF (Name + Adresse zusammen)
+    setText("p_buyer", v("buyerAddressBlock") || "—");
 
     setText("p_reference", v("reference") || "—");
 
@@ -1174,15 +1133,18 @@ CH-8050`;
   }
 
   // -----------------------------
-  // Export PDF
+  // Print
   // -----------------------------
   document.getElementById("printBtn").addEventListener("click", () => { recalc(); window.print(); });
 
+  // -----------------------------
+  // Finale PDF exportieren
+  // -----------------------------
   document.getElementById("exportPdfBtn").addEventListener("click", async () => {
     try{
       recalc();
       const ok = await ensureExportLibs();
-      if (!ok){ alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“."); return; }
+      if (!ok){ alert("Export-Libraries blockiert. Bitte nutze „Drucken / Als PDF speichern“."); return; }
 
       const paper = document.getElementById("invoicePaper");
       let canvas;
@@ -1240,10 +1202,10 @@ CH-8050`;
   });
 
   // =============================================================
-  // PARSER FIX:
-  // - Niemals SellerAddressBlock überschreiben (bleibt FIX)
-  // - Negative Beträge bei City Tax / Accommodation / Manual Accomodation:
-  //   => Debit bleibt NEGATIV (nicht Credit)
+  // PARSER:
+  // - Kunde: kompletten Block in buyerAddressBlock (inkl. Name)
+  // - Verkäufer nie überschreiben
+  // - Negative bei City Tax / Accommodation / Manual Accomodation -> Debit negativ behalten
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1251,7 +1213,6 @@ CH-8050`;
     const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
 
     const out = {
-      buyerName: "",
       buyerAddressBlock: "",
       reference: "",
       invoiceNo: "",
@@ -1300,8 +1261,8 @@ CH-8050`;
       pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
       pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*\n\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
 
-    // Buyer block (To...)
-    (function parseBuyer(){
+    // ✅ Buyer Block: alles in "Adresse Kunde"
+    (function parseBuyerBlock(){
       const idxTo = lines.findIndex(l => /^To$/i.test(l));
       const idxRef = lines.findIndex(l => /^Reference\b/i.test(l) || /^Gastname\b/i.test(l) || /^Guest\b/i.test(l));
       const idxTbl = lines.findIndex(l => /^Date\s+VAT\s+Description/i.test(l) || /^Date\s+Description/i.test(l));
@@ -1309,10 +1270,13 @@ CH-8050`;
       if (idxTo >= 0){
         const end = (idxRef > idxTo ? idxRef : (idxTbl > idxTo ? idxTbl : Math.min(lines.length, idxTo+14)));
         const block = lines.slice(idxTo+1, end).filter(Boolean).join("\n").trim();
-        if (block){
-          const bl = block.split("\n").map(s=>s.trim()).filter(Boolean);
-          out.buyerName = bl[0] || out.buyerName;
-          out.buyerAddressBlock = bl.slice(1).join("\n").trim() || out.buyerAddressBlock;
+        if (block) out.buyerAddressBlock = block;
+      } else {
+        // Fallback: Block vor "INVOICE" (wie in manchen Text-Dumps)
+        const idxInv = lines.findIndex(l => /^INVOICE$/i.test(l));
+        if (idxInv > 0){
+          const block = lines.slice(0, idxInv).join("\n").trim();
+          if (block) out.buyerAddressBlock = block;
         }
       }
 
@@ -1332,8 +1296,6 @@ CH-8050`;
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
 
     const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc || "");
-
-    // ✅ keep negative in Debit for these descriptions
     const keepNegativeInDebit = (desc) =>
       /(manual\s+accomodation|accomodation|accommodation|city\s*tax|city\s*taxe)/i.test(desc || "");
 
@@ -1357,10 +1319,10 @@ CH-8050`;
       const date = parts[0] || "";
       if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
 
-      let desc = parts[2] ?? "";
-      let qtyCell = parts[3] ?? "";
-      let debitCell = parts[4] ?? "";
-      let creditCell = parts[5] ?? "";
+      const desc = parts[2] ?? "";
+      const qtyCell = parts[3] ?? "";
+      const debitCell = parts[4] ?? "";
+      const creditCell = parts[5] ?? "";
 
       const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
 
@@ -1369,11 +1331,8 @@ CH-8050`;
 
       const creditLike = isCreditDesc(desc);
 
-      // if debit negative and no explicit credit
       if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
-        if (keepNegativeInDebit(desc)){
-          // keep negative in debit
-        } else {
+        if (!keepNegativeInDebit(desc)){
           creditVal = Math.abs(debitVal);
           debitVal = "";
         }
@@ -1384,7 +1343,7 @@ CH-8050`;
         desc,
         qty: qty === "" ? "" : qty,
         unit: "",
-        debit: creditLike ? "" : (debitVal === "" ? "" : debitVal),     // can be negative
+        debit: creditLike ? "" : (debitVal === "" ? "" : debitVal),
         credit: creditLike
           ? (creditVal === "" ? (debitVal === "" ? "" : Math.abs(debitVal)) : Math.abs(creditVal))
           : (creditVal === "" ? "" : Math.abs(creditVal)),
@@ -1403,7 +1362,7 @@ CH-8050`;
         const date = m[1];
         const desc = (m[2] || "").trim();
         const qty = toNumber(m[3]);
-        const amount = parseMoneyCell(m[4]); // can be negative
+        const amount = parseMoneyCell(m[4]);
 
         const creditLike = isCreditDesc(desc);
 
@@ -1413,7 +1372,7 @@ CH-8050`;
             desc,
             qty,
             unit: "",
-            debit: amount,   // keep negative
+            debit: amount,
             credit: "",
             vatRate: defaultRate,
             vatEnabled: true
@@ -1436,21 +1395,21 @@ CH-8050`;
     }
 
     out.items = items;
+
     const hasAnything =
       !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
       !!out.roomReservation || (out.items && out.items.length > 0) ||
-      !!out.buyerName || !!out.reference;
+      !!out.buyerAddressBlock || !!out.reference;
 
     return hasAnything ? out : null;
   }
 
   // -----------------------------
-  // Apply parsed (NEVER touch seller fields)
+  // Apply parsed (never touch seller)
   // -----------------------------
   function applyParsed(d){
     if (!d) return;
 
-    if (d.buyerName) setV("buyerName", d.buyerName);
     if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
     if (d.reference) setV("reference", d.reference);
 
@@ -1540,8 +1499,11 @@ CH-8050`;
   });
 
   // -----------------------------
-  // Init
+  // Init + live sync triggers
   // -----------------------------
+  const syncInputs = ["buyerAddressBlock","reference","invoiceNo","invoiceDate","currency","arrival","departure","roomReservation"];
+  syncInputs.forEach(id => document.getElementById(id).addEventListener("input", recalc));
+
   (function init(){
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("importPill", "<b>Import:</b> bereit", "");
@@ -1551,1598 +1513,9 @@ CH-8050`;
     renderItems();
     recalc();
 
-    // fixed footer
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   })();
 </script>
 </body>
 </html>
-
-      --ok:#0f766e;
-      --warn:#b45309;
-    }
-    *{ box-sizing:border-box; }
-    body{ margin:0; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--ink); background:var(--bg); }
-
-    header{
-      background:var(--card);
-      border-bottom:1px solid var(--line);
-      padding:14px 18px;
-      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
-    }
-    header h1{ font-size:14px; margin:0; font-weight:800; letter-spacing:.2px; }
-    .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-left:auto; }
-    .btn{
-      border:1px solid var(--line);
-      background:var(--card);
-      padding:8px 10px;
-      border-radius:10px;
-      cursor:pointer;
-      font-weight:700;
-      white-space:nowrap;
-      user-select:none;
-    }
-    .btn.primary{ background:var(--accent); color:#fff; border-color:transparent; }
-    .btn.success{ background:var(--ok); color:#fff; border-color:transparent; }
-    .btn:active{ transform: translateY(1px); }
-    .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
-
-    input[type="file"]{
-      position:absolute;
-      left:-9999px;
-      width:1px; height:1px;
-      opacity:0;
-    }
-
-    main{
-      padding:14px;
-      max-width: 1100px;
-      margin:0 auto;
-    }
-
-    .card{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:14px;
-      box-shadow: 0 1px 0 rgba(0,0,0,.03);
-      overflow:hidden;
-    }
-    .card .hd{
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-    }
-    .card .hd strong{ font-size:13px; }
-    .card .bd{ padding:14px; }
-
-    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-    @media (max-width: 700px){ .grid2,.grid3{ grid-template-columns:1fr; } }
-
-    label{ display:block; font-size:11px; color:var(--muted); margin-bottom:6px; }
-    .field{
-      border:1px solid var(--line);
-      border-radius:10px;
-      padding:9px 10px;
-      width:100%;
-      background:#fff;
-      outline:none;
-      font: inherit;
-    }
-    textarea.field{ min-height: 86px; resize: vertical; }
-    .field:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-
-    table{ width:100%; border-collapse:collapse; font-size:12px; }
-    thead th{
-      text-align:left; font-size:11px; color:var(--muted);
-      padding:8px 8px; border-bottom:1px solid var(--line);
-      background:#fff; position:sticky; top:0; z-index:1;
-    }
-    tbody td{ padding:6px 6px; border-bottom:1px solid #eee; vertical-align:top; }
-    tbody tr:hover{ background:#fcfcff; }
-    .num{ text-align:right; }
-    .right{ text-align:right; }
-    .muted{ color:var(--muted); }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-    .rowinput{
-      width:100%;
-      border:1px solid #eee;
-      border-radius:8px;
-      padding:6px 8px;
-      outline:none;
-      background:#fff;
-      font: inherit;
-    }
-    .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    .toggle{
-      display:flex; align-items:center; justify-content:center;
-      gap:6px;
-    }
-    .toggle input{ transform: scale(1.05); }
-
-    .hint{ font-size:11px; color:var(--muted); }
-
-    .totals{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-    }
-    .totals .box{
-      border:1px solid var(--line);
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-    }
-    .totals .box .k{ font-size:11px; color:var(--muted); }
-    .totals .box .v{ font-size:16px; font-weight:900; margin-top:4px; }
-
-    .statusBar{
-      border:1px solid #f0f0f0;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px 14px;
-      align-items:center;
-      margin-top:12px;
-    }
-    .statusPill{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:6px 10px;
-      border:1px solid #eee;
-      border-radius:999px;
-      font-size:12px;
-      background:#fff;
-      color:var(--muted);
-    }
-    .statusPill.ok{ color:var(--ok); border-color:#d1fae5; }
-    .statusPill.warn{ color:var(--warn); border-color:#ffedd5; }
-    .statusPill b{ color:inherit; }
-
-    /* -----------------------------
-       Printable invoice
-       ----------------------------- */
-    .invoicePaper{
-      background:#fff;
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:16px;
-    }
-
-    .invoiceHeader{
-      display:grid;
-      grid-template-columns: 1fr 360px;
-      gap:16px;
-      align-items:start;
-      border-bottom:1px solid #eee;
-      padding-bottom:12px;
-      margin-bottom:12px;
-    }
-    @media (max-width: 900px){
-      .invoiceHeader{ grid-template-columns: 1fr; }
-    }
-
-    .brandRow{
-      display:grid;
-      grid-template-columns: 390px 1fr; /* LOGO noch größer */
-      gap:14px;
-      align-items:start;
-    }
-    @media (max-width: 700px){
-      .brandRow{ grid-template-columns: 1fr; }
-    }
-
-    /* LOGO: noch ein bisschen größer + klarer */
-    .logoBox{
-      width:390px;
-      height:190px;
-      border:1px solid #e6e6e6;
-      border-radius:14px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      overflow:hidden;
-      background:#fff;
-      box-shadow: 0 2px 10px rgba(0,0,0,.06);
-      padding:12px;
-    }
-    .logoBox img{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      display:block;
-    }
-
-    .sellerHead{
-      border:1px solid #f0f0f0;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-      white-space:pre-wrap;
-      font-weight:700;
-    }
-    .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
-
-    .meta{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:8px;
-    }
-    .meta .kv{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      border:1px solid #f0f0f0;
-      border-radius:10px;
-      padding:8px 10px;
-      background:#fff;
-    }
-    .meta .kv b{ font-weight:800; }
-    .meta .kv span{ color:var(--muted); }
-
-    .blocks{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-      margin-bottom:10px;
-    }
-    @media (max-width: 700px){
-      .blocks{ grid-template-columns: 1fr; }
-    }
-
-    .block{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-      min-height:90px;
-    }
-    .block .t{ font-size:11px; color:var(--muted); margin-bottom:6px; }
-    .block .v{ font-weight:700; white-space:pre-wrap; }
-
-    .paperTable th, .paperTable td{ padding:6px 6px; border-bottom:1px solid #eee; }
-    .paperTable thead th{ position:static; top:auto; }
-
-    .paperFooter{
-      margin-top:12px;
-      display:grid;
-      grid-template-columns: 1fr 360px;
-      gap:12px;
-      align-items:start;
-    }
-    @media (max-width: 900px){
-      .paperFooter{ grid-template-columns: 1fr; }
-    }
-
-    .paperTotals{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-    }
-    .paperTotals .line{
-      display:flex; justify-content:space-between; gap:10px; padding:4px 0;
-    }
-    .paperTotals .line b{ font-weight:900; }
-
-    .paperVat{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-    }
-
-    /* FOOTER: 2 Spalten (links/rechts fix) */
-    .paperLegal{
-      margin-top:12px;
-      border-top:1px solid #eee;
-      padding-top:10px;
-      font-size:11px;
-      color:var(--muted);
-      line-height:1.35;
-    }
-    .paperLegalGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:14px;
-      align-items:start;
-    }
-    .paperLegalCol{ white-space:pre-wrap; }
-    .paperLegalCol.right{ text-align:right; white-space:pre-wrap; }
-    @media (max-width: 650px){
-      .paperLegalGrid{ grid-template-columns: 1fr; }
-      .paperLegalCol.right{ text-align:left; }
-    }
-
-    details summary{ cursor:pointer; font-weight:800; }
-
-    @media print{
-      body{ background:#fff; }
-      header, .noPrint{ display:none !important; }
-      main{ display:block; padding:0; margin:0; max-width:none; }
-      .card{ border:none; box-shadow:none; }
-      .invoicePaper{ border:none; border-radius:0; padding:0; }
-      @page{ size:A4; margin:12mm; }
-      .logoBox{ box-shadow:none; }
-    }
-  </style>
-</head>
-
-<body>
-<header>
-  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (verbessert) • Druck/PDF Export</h1>
-
-  <div class="toolbar">
-    <label class="btn primary" for="pdfFile">PDF importieren</label>
-    <input id="pdfFile" type="file" accept="application/pdf" />
-
-    <button class="btn" id="manualImportBtn" type="button" title="Fallback, wenn PDF.js blockiert ist">
-      Import per Text (Fallback)
-    </button>
-
-    <button class="btn" id="addRowBtn" type="button">+ Position</button>
-
-    <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
-    <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
-  </div>
-</header>
-
-<main>
-  <section class="card">
-    <div class="hd">
-      <strong>Editor (alles anpassbar)</strong>
-      <span class="hint">MwSt pro Zeile wählbar. PDF-Import nutzt Header-Spalten (X-Positionen) + robustere Feld-Erkennung.</span>
-    </div>
-
-    <div class="bd">
-      <div class="grid3">
-        <div>
-          <label>Hotel / Firma</label>
-          <input id="sellerName" class="field" value="ibis Zurich Messe Airport" />
-        </div>
-        <div>
-          <label>Kontakt / Web (Kopfzeile)</label>
-          <input id="sellerContact" class="field" value="+41 44 307 47 00 | H2980@accor.com | www.all.accor.com" />
-        </div>
-        <div>
-          <label>Optionale Zusatzzeile</label>
-          <input id="sellerExtra" class="field" value="" />
-        </div>
-      </div>
-
-      <div style="height:10px;"></div>
-
-      <div>
-        <label>Adresse Verkäufer (ein Feld)</label>
-        <textarea id="sellerAddressBlock" class="field">Heidi Abel-Weg 5
-CH-8050 ZURICH
-Switzerland</textarea>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="grid2">
-        <div>
-          <label>Kunde</label>
-          <input id="buyerName" class="field" value="" />
-        </div>
-        <div>
-          <label>Referenz / Gastname</label>
-          <input id="reference" class="field" value="" />
-        </div>
-      </div>
-
-      <div style="height:10px;"></div>
-
-      <div>
-        <label>Adresse Kunde (ein Feld)</label>
-        <textarea id="buyerAddressBlock" class="field"></textarea>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="grid3">
-        <div>
-          <label>Invoice No.</label>
-          <input id="invoiceNo" class="field" value="" />
-        </div>
-        <div>
-          <label>Rechnungsdatum</label>
-          <input id="invoiceDate" class="field" value="" />
-        </div>
-        <div>
-          <label>Währung</label>
-          <input id="currency" class="field" value="CHF" />
-        </div>
-      </div>
-
-      <div style="height:10px;"></div>
-
-      <div class="grid3">
-        <div>
-          <label>Anreise</label>
-          <input id="arrival" class="field" value="" />
-        </div>
-        <div>
-          <label>Abreise</label>
-          <input id="departure" class="field" value="" />
-        </div>
-        <div>
-          <label>Zimmer / Reservation</label>
-          <input id="roomReservation" class="field" value="" />
-        </div>
-      </div>
-
-      <div class="statusBar">
-        <span class="statusPill" id="importPill"><b>Import:</b> —</span>
-        <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
-        <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
-        <span class="hint" id="importHint">
-          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen (PDF öffnen → Text markieren → kopieren → einfügen).
-        </span>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="card" style="border-radius:12px;">
-        <div class="hd">
-          <strong>Positionen</strong>
-          <span class="hint">QTY × Unit → Debit (wenn Debit leer). MwSt je Zeile wählbar.</span>
-        </div>
-        <div class="bd" style="padding:0;">
-          <div style="max-height:340px; overflow:auto;">
-            <table id="itemsTable">
-              <thead>
-                <tr>
-                  <th style="width:110px;">Datum</th>
-                  <th>Beschreibung</th>
-                  <th class="num" style="width:70px;">QTY</th>
-                  <th class="num" style="width:90px;">Unit</th>
-                  <th class="num" style="width:110px;">Debit</th>
-                  <th class="num" style="width:110px;">Credit</th>
-                  <th class="num" style="width:92px;">MwSt %</th>
-                  <th style="width:86px;">MwSt?</th>
-                  <th style="width:70px;"></th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="totals">
-        <div class="box">
-          <div class="k">Total Debit</div>
-          <div class="v mono" id="totalDebit">0.00</div>
-        </div>
-        <div class="box">
-          <div class="k">Total Credit</div>
-          <div class="v mono" id="totalCredit">0.00</div>
-        </div>
-        <div class="box">
-          <div class="k">Saldo (Debit − Credit)</div>
-          <div class="v mono" id="balance">0.00</div>
-        </div>
-        <div class="box">
-          <div class="k">Endbetrag / Total</div>
-          <div class="v mono" id="grandTotal">0.00</div>
-        </div>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="card" style="border-radius:12px;">
-        <div class="hd">
-          <strong>MwSt-Aufschlüsselung (pro Satz)</strong>
-          <span class="hint">Steuerbasis je Satz = Summe steuerbarer Zeilen (Debit − Credit).</span>
-        </div>
-        <div class="bd">
-          <table id="vatBreakdownTable">
-            <thead>
-              <tr>
-                <th>MwSt %</th>
-                <th class="num">Netto</th>
-                <th class="num">MwSt</th>
-                <th class="num">Brutto</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-          <div class="hint" style="margin-top:8px;">
-            Logik: Zeile hat „MwSt?“ an/aus + MwSt-%. Credits reduzieren die Basis.
-          </div>
-        </div>
-      </div>
-
-      <div style="height:18px;"></div>
-
-      <div class="invoicePaper" id="invoicePaper">
-        <div class="invoiceHeader">
-          <div>
-            <div class="brandRow">
-              <div class="logoBox" title="Logo (lokal im Repo)">
-                <img id="logoImg"
-                     src="Logo_ibis_RGB.png"
-                     alt="Logo ibis"
-                     crossorigin="anonymous"
-                     referrerpolicy="no-referrer"
-                     onerror="this.style.display='none';document.getElementById('logoFallback').style.display='block';" />
-                <div id="logoFallback" class="muted" style="display:none;text-align:center;padding:8px;">
-                  ibis<br><span class="hint">Logo konnte nicht geladen werden</span>
-                </div>
-              </div>
-
-              <div class="sellerHead">
-                <div id="p_sellerHeadMain"></div>
-                <div class="small" id="p_sellerHeadContact"></div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div style="font-weight:900;font-size:16px;margin-bottom:6px;">INVOICE</div>
-            <div class="meta">
-              <div class="kv"><span>Invoice No.</span><b id="p_invoiceNo">—</b></div>
-              <div class="kv"><span>Date</span><b id="p_invoiceDate">—</b></div>
-              <div class="kv"><span>Arrival</span><b id="p_arrival">—</b></div>
-              <div class="kv"><span>Departure</span><b id="p_departure">—</b></div>
-              <div class="kv"><span>Room / Reservation</span><b id="p_roomRes">—</b></div>
-              <div class="kv"><span>Currency</span><b id="p_currency">—</b></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="blocks">
-          <div class="block">
-            <div class="t">From</div>
-            <div class="v" id="p_seller"></div>
-          </div>
-          <div class="block">
-            <div class="t">To</div>
-            <div class="v" id="p_buyer"></div>
-          </div>
-        </div>
-
-        <div class="block" style="margin-bottom:12px;">
-          <div class="t">Reference</div>
-          <div class="v" id="p_reference"></div>
-        </div>
-
-        <table class="paperTable">
-          <thead>
-            <tr>
-              <th style="width:90px;">Date</th>
-              <th>Description</th>
-              <th class="num" style="width:60px;">QTY</th>
-              <th class="num" style="width:90px;">Unit</th>
-              <th class="num" style="width:100px;">Debit</th>
-              <th class="num" style="width:100px;">Credit</th>
-              <th class="num" style="width:70px;">VAT%</th>
-            </tr>
-          </thead>
-          <tbody id="p_items"></tbody>
-        </table>
-
-        <div class="paperFooter">
-          <div class="paperVat">
-            <div style="font-weight:900;margin-bottom:6px;">VAT Breakdown</div>
-            <table style="width:100%; border-collapse:collapse; font-size:12px;">
-              <thead>
-                <tr>
-                  <th style="text-align:left;color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">VAT%</th>
-                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">Net</th>
-                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">VAT</th>
-                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">Gross</th>
-                </tr>
-              </thead>
-              <tbody id="p_vatRows"></tbody>
-            </table>
-          </div>
-
-          <div class="paperTotals">
-            <div style="font-weight:900;margin-bottom:6px;">Totals</div>
-            <div class="line"><span>Total Debit</span><b class="mono" id="p_totalDebit">—</b></div>
-            <div class="line"><span>Total Credit</span><b class="mono" id="p_totalCredit">—</b></div>
-            <div class="line" style="border-top:1px solid #eee;margin-top:6px;padding-top:8px;">
-              <span>Balance</span><b class="mono" id="p_balance">—</b>
-            </div>
-          </div>
-        </div>
-
-        <div class="paperLegal">
-          <div class="paperLegalGrid">
-            <div class="paperLegalCol" id="p_legalLeft"></div>
-            <div class="paperLegalCol right" id="p_legalRight"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="noPrint" style="margin-top:10px;">
-        <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
-        </div>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <details class="card" style="border-radius:12px;">
-        <summary class="hd">
-          <strong>Import-Text (Debug) anzeigen</strong>
-          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
-        </summary>
-        <div class="bd">
-          <label>Ausgelesener / eingefügter Text</label>
-          <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
-          <div class="hint" style="margin-top:8px;">
-            Wenn PDF-Import im Betrieb blockiert ist: PDF in Edge/Chrome/Adobe öffnen → Text markieren → kopieren → „Import per Text (Fallback)“.
-          </div>
-        </div>
-      </details>
-
-    </div>
-  </section>
-</main>
-
-<script>
-  // =============================================================
-  // FIXED FOOTER (links/rechts)
-  // =============================================================
-  const FIXED_FOOTER_LEFT = `Essendi Switzerland SA (ehem. AccorInvest)
-UBS SA
-Konto-Nr: 243-442422.05R
-IBAN: CH24 0024 3243 4424 2205 R
-BIC: UBSWCHZH80A
-USt-IdNr. CHE-106.003.397 MWST`;
-
-  const FIXED_FOOTER_RIGHT = `ESSENDI SWITZERLAND SA
-Management Switzerland
-ibis Zurich Messe Airport
-Heidi Abel-Weg 5
-CH-8050`;
-
-  // -----------------------------
-  // CDN Kandidaten (mehrere Quellen)
-  // -----------------------------
-  const LIBS = {
-    pdfjs: [
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js",
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.js",
-      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.min.js",
-    ],
-    pdfjsWorker: [
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js",
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
-      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
-    ],
-    html2canvas: [
-      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
-      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
-      "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js",
-    ],
-    jspdf: [
-      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
-      "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js",
-    ]
-  };
-
-  const loadedScripts = new Set();
-  function loadScriptOnce(url){
-    return new Promise((resolve, reject) => {
-      if (loadedScripts.has(url)) return resolve(true);
-      const s = document.createElement("script");
-      s.src = url;
-      s.async = true;
-      s.onload = () => { loadedScripts.add(url); resolve(true); };
-      s.onerror = () => reject(new Error("Script load failed: " + url));
-      document.head.appendChild(s);
-    });
-  }
-  async function loadAny(candidates){
-    for (const url of candidates){
-      try{ await loadScriptOnce(url); return url; }
-      catch (e){ console.warn(e); }
-    }
-    return "";
-  }
-
-  // -----------------------------
-  // State
-  // -----------------------------
-  const state = { items: [] };
-
-  // -----------------------------
-  // Helpers
-  // -----------------------------
-  function toNumber(val){
-    if (val === null || val === undefined) return 0;
-    if (typeof val === "number") return isFinite(val) ? val : 0;
-
-    let s = String(val).trim();
-    if (!s) return 0;
-
-    s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
-
-    const hasDot = s.includes(".");
-    const hasComma = s.includes(",");
-    if (hasDot && hasComma){
-      const lastDot = s.lastIndexOf(".");
-      const lastComma = s.lastIndexOf(",");
-      const decIsComma = lastComma > lastDot;
-      if (decIsComma) s = s.replace(/\./g,"").replace(",",".");
-      else s = s.replace(/,/g,"");
-    } else if (hasComma && !hasDot){
-      s = s.replace(",",".");
-    } else {
-      s = s.replace(/,/g,"");
-    }
-
-    const n = parseFloat(s);
-    return isFinite(n) ? n : 0;
-  }
-  function round2(n){ return Math.round(n*100)/100; }
-
-  function fmt(n){
-    const cur = document.getElementById("currency").value || "CHF";
-    return `${round2(n).toFixed(2)} ${cur}`;
-  }
-  function escapeHtml(s){
-    return String(s ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
-  function setPill(id, text, kind){
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.classList.remove("ok","warn");
-    if (kind) el.classList.add(kind);
-    el.innerHTML = text;
-  }
-  function normalizeText(t){
-    return (t || "")
-      .replace(/\r/g,"")
-      .replace(/[ \t]+\n/g,"\n")
-      .replace(/\n{3,}/g,"\n\n")
-      .trim();
-  }
-  function v(id){ return document.getElementById(id).value; }
-  function setV(id, val){ document.getElementById(id).value = val; }
-  function setText(id, val){
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = val;
-  }
-
-  // -----------------------------
-  // PDF.js On-Demand Loader
-  // -----------------------------
-  async function ensurePdfJsReady(){
-    if (window.pdfjsLib) return true;
-
-    setPill("workerPill", "<b>PDF.js:</b> laden…", "");
-    const url = await loadAny(LIBS.pdfjs);
-
-    if (!url || !window.pdfjsLib){
-      setPill("workerPill", "<b>PDF.js:</b> blockiert – Text-Fallback nutzen", "warn");
-      return false;
-    }
-
-    const workerUrl = await loadAny(LIBS.pdfjsWorker);
-    try{
-      if (workerUrl && window.pdfjsLib?.GlobalWorkerOptions){
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-        setPill("workerPill", "<b>PDF.js:</b> geladen (Worker)", "ok");
-      } else {
-        setPill("workerPill", "<b>PDF.js:</b> geladen (ohne Worker)", "warn");
-      }
-    } catch (e){
-      console.warn("Worker set failed:", e);
-      setPill("workerPill", "<b>PDF.js:</b> geladen (Fallback)", "warn");
-    }
-    return true;
-  }
-
-  // -----------------------------
-  // Header-Spalten basierte Tabellen-Zeilen
-  // -----------------------------
-  async function extractPageTextByLines(page){
-    const content = await page.getTextContent({ disableCombineTextItems: false });
-
-    const items = [];
-    const Y_TOL = 1.6;
-
-    for (const it of content.items){
-      const str = String(it.str ?? "").replace(/\s+/g, " ").trim();
-      if (!str) continue;
-      const tx = it.transform;
-      const x = tx[4];
-      const y = tx[5];
-      const yKey = Math.round(y / Y_TOL) * Y_TOL;
-      items.push({ x, y, yKey, str });
-    }
-
-    const rows = new Map();
-    for (const it of items){
-      if (!rows.has(it.yKey)) rows.set(it.yKey, []);
-      rows.get(it.yKey).push(it);
-    }
-
-    const yKeys = Array.from(rows.keys()).sort((a,b) => b - a);
-
-    const rowText = (yKey) =>
-      rows.get(yKey).slice().sort((a,b)=>a.x-b.x).map(o=>o.str).join(" ").trim();
-
-    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9%]+/g," ").replace(/\s+/g," ").trim();
-
-    let headerY = null;
-    for (const yKey of yKeys){
-      const t = norm(rowText(yKey));
-      const hasDate = t.includes("date");
-      const hasDesc = t.includes("description");
-      const hasQty  = t.includes("qty") || t.includes("qty.");
-      const hasDebit = t.includes("debit");
-      const hasCredit = t.includes("credit");
-      if (hasDate && hasDesc && hasQty && hasDebit && hasCredit){
-        headerY = yKey;
-        break;
-      }
-    }
-
-    if (headerY === null){
-      const out = [];
-      for (const yKey of yKeys){
-        const line = rowText(yKey);
-        if (line) out.push(line);
-      }
-      return out.join("\n");
-    }
-
-    const headerItems = rows.get(headerY).slice().sort((a,b)=>a.x-b.x);
-
-    function findX(wordRe){
-      const hit = headerItems.find(o => wordRe.test(o.str));
-      return hit ? hit.x : null;
-    }
-
-    const xDate   = findX(/^Date$/i) ?? 0;
-    const xVAT    = findX(/^VAT$/i);
-    const xDesc   = findX(/^Description$/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
-    const xQty    = findX(/^Qty\.?$/i) ?? (xDesc + 220);
-    const xDebit  = findX(/^Debit$/i) ?? (xQty + 60);
-    const xCredit = findX(/^Credit$/i) ?? (xDebit + 80);
-
-    const xVatResolved = (xVAT ?? ((xDate + xDesc) / 2));
-
-    const bounds = [
-      { key:"date",   left:-Infinity,                 right:(xVatResolved + xDate)/2 },
-      { key:"vat",    left:(xVatResolved + xDate)/2,  right:(xDesc + xVatResolved)/2 },
-      { key:"desc",   left:(xDesc + xVatResolved)/2,  right:(xQty + xDesc)/2 },
-      { key:"qty",    left:(xQty + xDesc)/2,          right:(xDebit + xQty)/2 },
-      { key:"debit",  left:(xDebit + xQty)/2,         right:(xCredit + xDebit)/2 },
-      { key:"credit", left:(xCredit + xDebit)/2,      right:Infinity },
-    ];
-
-    function bucketKey(x){
-      return bounds.find(b => x >= b.left && x < b.right)?.key || "desc";
-    }
-
-    const GLUE_GAP = 10;
-    function joinParts(parts){
-      parts.sort((a,b)=>a.x-b.x);
-      let out = "";
-      let lastX = null;
-
-      const isDigit = (c) => c >= "0" && c <= "9";
-      const startsNum = (s) => isDigit((s[0]||"")) || s[0] === "." || s[0] === "," || s[0] === ")" || s[0] === "%";
-      const endsNum = (s) => {
-        const c = s[s.length-1] || "";
-        return isDigit(c) || c === "." || c === "," || c === "(";
-      };
-
-      for (const p of parts){
-        if (!out){
-          out = p.str;
-          lastX = p.x;
-          continue;
-        }
-        const gap = p.x - lastX;
-        const glueLikely = gap <= GLUE_GAP && endsNum(out) && startsNum(p.str);
-        out += glueLikely ? "" : " ";
-        out += p.str;
-        lastX = p.x;
-      }
-      return out.trim();
-    }
-
-    const outLines = [];
-    for (const yKey of yKeys){
-      if (yKey >= headerY) continue;
-
-      const row = rows.get(yKey).slice();
-      const buckets = { date:[], vat:[], desc:[], qty:[], debit:[], credit:[] };
-      for (const it of row){
-        buckets[bucketKey(it.x)].push(it);
-      }
-
-      const date = joinParts(buckets.date);
-      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
-
-      const vat    = joinParts(buckets.vat);
-      const desc   = joinParts(buckets.desc);
-      const qty    = joinParts(buckets.qty);
-      const debit  = joinParts(buckets.debit);
-      const credit = joinParts(buckets.credit);
-
-      outLines.push([date, vat, desc, qty, debit, credit].join(" | ").trim());
-    }
-
-    return outLines.join("\n");
-  }
-
-  // -----------------------------
-  // Export libs On-Demand Loader
-  // -----------------------------
-  async function ensureExportLibs(){
-    if (!window.html2canvas){
-      setPill("exportPill", "<b>Export:</b> html2canvas laden…", "");
-      await loadAny(LIBS.html2canvas);
-    }
-    if (!window.jspdf){
-      setPill("exportPill", "<b>Export:</b> jsPDF laden…", "");
-      await loadAny(LIBS.jspdf);
-    }
-    const ok = !!window.html2canvas && !!window.jspdf?.jsPDF;
-    setPill("exportPill", ok ? "<b>Export:</b> bereit" : "<b>Export:</b> blockiert (Drucken nutzen)", ok ? "ok" : "warn");
-    return ok;
-  }
-
-  // -----------------------------
-  // Items table render
-  // -----------------------------
-  const tbody = document.querySelector("#itemsTable tbody");
-
-  function renderItems(){
-    tbody.innerHTML = "";
-    state.items.forEach((it, idx) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><input class="rowinput mono" value="${escapeHtml(it.date ?? "")}" data-k="date" data-i="${idx}"></td>
-        <td><input class="rowinput" value="${escapeHtml(it.desc ?? "")}" data-k="desc" data-i="${idx}"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.qty ?? "")}" data-k="qty" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.unit ?? "")}" data-k="unit" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.debit ?? "")}" data-k="debit" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.credit ?? "")}" data-k="credit" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num">
-          <input class="rowinput right mono" value="${escapeHtml(it.vatRate ?? 0)}" data-k="vatRate" data-i="${idx}" inputmode="decimal" title="MwSt % für diese Position">
-        </td>
-        <td class="toggle">
-          <label style="margin:0;display:flex;align-items:center;gap:6px;">
-            <input type="checkbox" ${it.vatEnabled ? "checked":""} data-k="vatEnabled" data-i="${idx}">
-            <span class="hint">Ja</span>
-          </label>
-        </td>
-        <td class="right"><button class="btn" type="button" data-del="${idx}">✕</button></td>
-      `;
-      tbody.appendChild(tr);
-    });
-    recalc();
-  }
-
-  tbody.addEventListener("input", (e) => {
-    const el = e.target;
-    if (!el.dataset || el.dataset.i === undefined) return;
-    const i = parseInt(el.dataset.i, 10);
-    const k = el.dataset.k;
-    if (!state.items[i]) return;
-
-    let vv = el.value;
-    if (["qty","unit","debit","credit","vatRate"].includes(k)){
-      if (String(vv).trim() === "") state.items[i][k] = "";
-      else state.items[i][k] = toNumber(vv);
-    } else {
-      state.items[i][k] = vv;
-    }
-    recalc();
-  });
-
-  tbody.addEventListener("change", (e) => {
-    const el = e.target;
-    if (!el.dataset || el.dataset.i === undefined) return;
-    const i = parseInt(el.dataset.i, 10);
-    const k = el.dataset.k;
-    if (!state.items[i]) return;
-
-    if (k === "vatEnabled"){
-      state.items[i].vatEnabled = !!el.checked;
-      recalc();
-    }
-  });
-
-  tbody.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-del]");
-    if (!btn) return;
-    const idx = parseInt(btn.dataset.del, 10);
-    state.items.splice(idx, 1);
-    renderItems();
-  });
-
-  document.getElementById("addRowBtn").addEventListener("click", () => {
-    state.items.push({ date:"", desc:"", qty:"", unit:"", debit:"", credit:"", vatRate: 3.8, vatEnabled: true });
-    renderItems();
-  });
-
-  // -----------------------------
-  // Recalc totals + VAT breakdown
-  // -----------------------------
-  function recalc(){
-    state.items = state.items.map(it => {
-      const qty = toNumber(it.qty);
-      const unit = toNumber(it.unit);
-      const debit = it.debit === "" ? "" : toNumber(it.debit);
-      const credit = it.credit === "" ? "" : toNumber(it.credit);
-
-      if ((debit === "" || debit === 0) && (credit === "" || credit === 0) && qty > 0 && unit > 0){
-        return { ...it, debit: round2(qty*unit) };
-      }
-      return it;
-    });
-
-    let totalDebit = 0;
-    let totalCredit = 0;
-    for (const it of state.items){
-      totalDebit += (it.debit === "" ? 0 : toNumber(it.debit));   // kann negativ sein
-      totalCredit += (it.credit === "" ? 0 : toNumber(it.credit));
-    }
-    const balance = totalDebit - totalCredit;
-
-    document.getElementById("totalDebit").textContent = fmt(totalDebit);
-    document.getElementById("totalCredit").textContent = fmt(totalCredit);
-    document.getElementById("balance").textContent = fmt(balance);
-    document.getElementById("grandTotal").textContent = fmt(balance);
-
-    const groups = new Map();
-    for (const it of state.items){
-      if (!it.vatEnabled) continue;
-      const rate = toNumber(it.vatRate);
-      if (rate <= 0) continue;
-
-      const lineAmount = (it.debit === "" ? 0 : toNumber(it.debit)) - (it.credit === "" ? 0 : toNumber(it.credit));
-      if (lineAmount === 0) continue;
-
-      const prev = groups.get(rate) || { gross: 0 };
-      prev.gross += lineAmount; // kann auch negativ sein
-      groups.set(rate, prev);
-    }
-
-    const vatBody = document.querySelector("#vatBreakdownTable tbody");
-    vatBody.innerHTML = "";
-
-    const pVat = document.getElementById("p_vatRows");
-    pVat.innerHTML = "";
-
-    const rates = Array.from(groups.keys()).sort((a,b) => a-b);
-
-    if (rates.length === 0){
-      vatBody.innerHTML = `<tr><td class="muted" colspan="4">Keine MwSt-pflichtigen Positionen.</td></tr>`;
-      pVat.innerHTML = `<tr><td class="muted" colspan="4" style="padding:6px 4px;">Keine MwSt.</td></tr>`;
-    } else {
-      for (const rate of rates){
-        const gross = groups.get(rate).gross;
-        const r = rate / 100;
-        const net = gross / (1 + r);
-        const vat = gross - net;
-
-        vatBody.insertAdjacentHTML("beforeend", `
-          <tr>
-            <td class="mono">${rate.toFixed(1)}%</td>
-            <td class="num mono">${fmt(net)}</td>
-            <td class="num mono">${fmt(vat)}</td>
-            <td class="num mono">${fmt(gross)}</td>
-          </tr>
-        `);
-
-        pVat.insertAdjacentHTML("beforeend", `
-          <tr>
-            <td class="mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${rate.toFixed(1)}%</td>
-            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(net)}</td>
-            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(vat)}</td>
-            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(gross)}</td>
-          </tr>
-        `);
-      }
-    }
-
-    syncPrintable(totalDebit, totalCredit, balance);
-  }
-
-  // -----------------------------
-  // Sync printable invoice
-  // -----------------------------
-  function syncPrintable(totalDebit, totalCredit, balance){
-    setText("p_invoiceNo", v("invoiceNo") || "—");
-    setText("p_invoiceDate", v("invoiceDate") || "—");
-    setText("p_arrival", v("arrival") || "—");
-    setText("p_departure", v("departure") || "—");
-    setText("p_roomRes", v("roomReservation") || "—");
-    setText("p_currency", v("currency") || "—");
-
-    const sellerHeadMain = [ v("sellerName"), v("sellerAddressBlock") ].filter(Boolean).join("\n");
-    setText("p_sellerHeadMain", sellerHeadMain);
-
-    const sellerHeadContact = [ v("sellerContact"), v("sellerExtra") ].filter(Boolean).join(" | ");
-    setText("p_sellerHeadContact", sellerHeadContact);
-
-    const sellerBlock = [ v("sellerName"), v("sellerAddressBlock"), v("sellerContact"), v("sellerExtra") ].filter(Boolean).join("\n");
-    setText("p_seller", sellerBlock);
-
-    const buyerBlock = [ v("buyerName"), v("buyerAddressBlock") ].filter(Boolean).join("\n");
-    setText("p_buyer", buyerBlock);
-
-    setText("p_reference", v("reference") || "—");
-
-    const pItems = document.getElementById("p_items");
-    pItems.innerHTML = "";
-    for (const it of state.items){
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="mono">${escapeHtml(it.date ?? "")}</td>
-        <td>${escapeHtml(it.desc ?? "")}</td>
-        <td class="num mono">${(it.qty === "" ? "" : toNumber(it.qty).toString())}</td>
-        <td class="num mono">${(it.unit === "" ? "" : toNumber(it.unit).toFixed(2))}</td>
-        <td class="num mono">${(it.debit === "" ? "" : fmt(toNumber(it.debit)))}</td>
-        <td class="num mono">${(it.credit === "" ? "" : fmt(toNumber(it.credit)))}</td>
-        <td class="num mono">${it.vatEnabled ? (toNumber(it.vatRate).toFixed(1) + "%") : "—"}</td>
-      `;
-      pItems.appendChild(tr);
-    }
-
-    setText("p_totalDebit", fmt(totalDebit));
-    setText("p_totalCredit", fmt(totalCredit));
-    setText("p_balance", fmt(balance));
-
-    setText("p_legalLeft", FIXED_FOOTER_LEFT);
-    setText("p_legalRight", FIXED_FOOTER_RIGHT);
-  }
-
-  [
-    "sellerName","sellerContact","sellerExtra","sellerAddressBlock",
-    "buyerName","buyerAddressBlock","reference",
-    "invoiceNo","invoiceDate","currency",
-    "arrival","departure","roomReservation"
-  ].forEach(id => document.getElementById(id).addEventListener("input", recalc));
-
-  // -----------------------------
-  // Print
-  // -----------------------------
-  document.getElementById("printBtn").addEventListener("click", () => {
-    recalc();
-    window.print();
-  });
-
-  // -----------------------------
-  // Finale PDF exportieren
-  // -----------------------------
-  document.getElementById("exportPdfBtn").addEventListener("click", async () => {
-    try{
-      recalc();
-
-      const ok = await ensureExportLibs();
-      if (!ok){
-        alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“.");
-        return;
-      }
-
-      const paper = document.getElementById("invoicePaper");
-
-      let canvas;
-      try{
-        canvas = await html2canvas(paper, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-        canvas.toDataURL("image/png");
-      } catch (e1){
-        console.warn("Export attempt 1 failed (tainted?). Retrying without logo…", e1);
-
-        canvas = await html2canvas(paper, {
-          scale: 2,
-          useCORS: false,
-          backgroundColor: "#ffffff",
-          onclone: (doc) => {
-            doc.querySelectorAll("#invoicePaper img").forEach(img => img.remove());
-            const fb = doc.getElementById("logoFallback");
-            if (fb){
-              fb.style.display = "block";
-              fb.style.color = "#666";
-              fb.innerHTML = 'ibis<br><span style="font-size:11px;color:#666;">Zurich Messe Airport</span>';
-            }
-          }
-        });
-
-        canvas.toDataURL("image/png");
-      }
-
-      const imgData = canvas.toDataURL("image/png");
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = pageWidth;
-      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-
-      if (imgHeight <= pageHeight){
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
-      } else {
-        let remaining = imgHeight;
-        let position = 0;
-        while (remaining > 0){
-          pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-          remaining -= pageHeight;
-          position -= pageHeight;
-          if (remaining > 0) pdf.addPage();
-        }
-      }
-
-      const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g,"_");
-      pdf.save(`Finale_Rechnung_${inv}.pdf`);
-      setPill("exportPill", "<b>Export:</b> PDF erstellt ✓", "ok");
-
-    } catch (err){
-      console.error(err);
-      const msg = String(err?.message || err);
-      setPill("exportPill", "<b>Export:</b> Fehler", "warn");
-
-      if (msg.toLowerCase().includes("tainted")){
-        alert(
-          "PDF Export blockiert (tainted canvas).\n\n" +
-          "Workaround: Nutze „Drucken / Als PDF speichern“.\n" +
-          "Hinweis: Der Code versucht bereits ohne Bilder zu exportieren; wenn es trotzdem passiert, blockiert die Umgebung Canvas-Export generell."
-        );
-      } else {
-        alert("PDF Export fehlgeschlagen: " + msg);
-      }
-    }
-  });
-
-  // -----------------------------
-  // PDF Import (Text Extraction)
-  // -----------------------------
-  const pdfFileInput = document.getElementById("pdfFile");
-  const extractedTextEl = document.getElementById("extractedText");
-
-  pdfFileInput.addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} …`, "");
-
-    const ok = await ensurePdfJsReady();
-    if (!ok){
-      setPill("importPill", `<b>Import:</b> blockiert (Text-Fallback)`, "warn");
-      alert(
-        "PDF.js ist im Betrieb blockiert.\n\n" +
-        "Bitte nutze „Import per Text (Fallback)“:\n" +
-        "- PDF in Edge/Chrome/Adobe öffnen\n" +
-        "- Text markieren & kopieren\n" +
-        "- im Fallback-Dialog einfügen"
-      );
-      e.target.value = "";
-      return;
-    }
-
-    try{
-      const buf = await file.arrayBuffer();
-      const data = new Uint8Array(buf);
-
-      let pdf;
-      try{
-        pdf = await pdfjsLib.getDocument({ data }).promise;
-      } catch (err1){
-        console.warn("Worker blocked? retry disableWorker", err1);
-        pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
-        setPill("workerPill", "<b>PDF.js:</b> Worker deaktiviert (Fallback)", "warn");
-      }
-
-      let fullText = "";
-      for (let p=1; p<=pdf.numPages; p++){
-        const page = await pdf.getPage(p);
-        fullText += await extractPageTextByLines(page);
-        fullText += "\n";
-      }
-
-      fullText = normalizeText(fullText);
-      extractedTextEl.value = fullText;
-
-      const parsed = parseInvoiceFromText(fullText);
-
-      if (parsed){
-        applyParsed(parsed);
-        setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
-      } else {
-        setPill("importPill", `<b>Import:</b> nichts erkannt`, "warn");
-        alert("PDF importiert, aber Daten nicht erkannt. Bitte unten im „Import-Text“ prüfen (evtl. gescannt / anderer Aufbau).");
-      }
-
-    } catch(err){
-      console.error(err);
-      setPill("importPill", `<b>Import:</b> Fehler`, "warn");
-      alert("PDF Import fehlgeschlagen: " + (err?.message || err));
-    } finally {
-      e.target.value = "";
-    }
-  });
-
-  // -----------------------------
-  // Text-Fallback Import
-  // -----------------------------
-  document.getElementById("manualImportBtn").addEventListener("click", () => {
-    const existing = extractedTextEl.value?.trim() ? extractedTextEl.value.trim() : "";
-    const txt = prompt(
-      "Fallback-Import (Copy/Paste):\n\n" +
-      "1) PDF in Edge/Chrome/Adobe öffnen\n" +
-      "2) Text markieren & kopieren\n" +
-      "3) Hier einfügen und OK\n\n" +
-      "Hinweis: Wenn PDF nur ein Scan/Bild ist, ist kaum Text kopierbar.",
-      existing
-    );
-    if (!txt) return;
-
-    extractedTextEl.value = txt;
-
-    const parsed = parseInvoiceFromText(normalizeText(txt));
-    if (parsed){
-      applyParsed(parsed);
-      setPill("importPill", "<b>Import:</b> Text-Fallback ✓", "ok");
-    } else {
-      setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
-      alert("Text eingefügt, aber Daten nicht erkannt. Prüfe bitte den eingefügten Text im Debug-Feld.");
-    }
-  });
-
-  function applyParsed(d){
-    if (!d) return;
-
-    if (d.sellerName) setV("sellerName", d.sellerName);
-    if (d.sellerContact) setV("sellerContact", d.sellerContact);
-    if (d.sellerExtra) setV("sellerExtra", d.sellerExtra);
-    if (d.sellerAddressBlock) setV("sellerAddressBlock", d.sellerAddressBlock);
-
-    if (d.buyerName) setV("buyerName", d.buyerName);
-    if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
-
-    if (d.reference) setV("reference", d.reference);
-
-    if (d.invoiceNo) setV("invoiceNo", d.invoiceNo);
-    if (d.invoiceDate) setV("invoiceDate", d.invoiceDate);
-    if (d.currency) setV("currency", d.currency);
-
-    if (d.arrival) setV("arrival", d.arrival);
-    if (d.departure) setV("departure", d.departure);
-    if (d.roomReservation) setV("roomReservation", d.roomReservation);
-
-    if (Array.isArray(d.items)) state.items = d.items;
-    renderItems();
-  }
-
-  // =============================================================
-  // PARSER (Fix: negative Beträge für Accommodation/Manual/City Tax
-  // bleiben im Debit als negativer Betrag)
-  // =============================================================
-  function parseInvoiceFromText(text){
-    const t = (text || "");
-    const upper = t.toUpperCase();
-    const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
-
-    const out = {
-      sellerName: "",
-      sellerContact: "",
-      sellerExtra: "",
-      sellerAddressBlock: "",
-      buyerName: "",
-      buyerAddressBlock: "",
-      reference: "",
-      invoiceNo: "",
-      invoiceDate: "",
-      currency: "",
-      arrival: "",
-      departure: "",
-      roomReservation: "",
-      items: []
-    };
-
-    const pick = (re) => {
-      const m = t.match(re);
-      return m ? (m[1] ?? "").trim() : "";
-    };
-
-    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
-
-    out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) || pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
-
-    out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-    out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-    out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-
-    if (out.invoiceDate) out.invoiceDate = normDate(out.invoiceDate);
-    if (out.arrival) out.arrival = normDate(out.arrival);
-    if (out.departure) out.departure = normDate(out.departure);
-
-    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
-    if (!out.currency){
-      const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
-      if (m) out.currency = m[1];
-    }
-
-    const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
-    if (roomRes1) out.roomReservation = roomRes1;
-    if (!out.roomReservation){
-      const rm = pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
-      const rs = pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
-      if (rm || rs){
-        out.roomReservation = [rm ? `Room ${rm}` : "", rs ? `Reservation ${rs}` : ""].filter(Boolean).join(" | ");
-      }
-    }
-
-    out.reference =
-      pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
-      pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*\n\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
-
-    // Default VAT rate (VAT x%)
-    const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
-    const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
-
-    const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
-
-    // ✅ Diese Texte sollen negative Beträge im Debit behalten (nicht Credit)
-    const keepNegativeInDebit = (desc) =>
-      /(manual\s+accomodation|accomodation|accommodation|city\s*tax)/i.test(desc || "");
-
-    function parseMoneyCell(s){
-      const raw = String(s || "").trim();
-      if (!raw) return "";
-      const isParens = /^\(.*\)$/.test(raw);
-      const cleaned = raw.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
-      let n = toNumber(cleaned);
-      if (isParens) n = -Math.abs(n);
-      return n;
-    }
-
-    const items = [];
-
-    // A) Pipe-Format
-    for (const line of lines){
-      if (!line.includes("|")) continue;
-      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
-
-      const date = parts[0] || "";
-      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
-
-      let vatCell = parts[1] ?? "";
-      let descCell = parts[2] ?? "";
-      let qtyCell = parts[3] ?? "";
-      let debitCell = parts[4] ?? "";
-      let creditCell = parts[5] ?? "";
-
-      const looksLikeVat = (s) => !s ? true : /^[0-9]+([.,][0-9]+)?%?$/.test(s);
-      if (!looksLikeVat(vatCell) && looksLikeVat(descCell)){
-        descCell = vatCell;
-        qtyCell = parts[2] ?? "";
-        debitCell = parts[3] ?? "";
-        creditCell = parts[4] ?? "";
-        vatCell = "";
-      }
-
-      const desc = descCell || "";
-      const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
-
-      let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
-      let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
-
-      const creditLike = isCreditDesc(desc);
-
-      // ✅ Wenn negativer Betrag im Debit steht:
-      // - bei Accommodation/Manual/City Tax => Debit NEGATIV lassen
-      // - sonst => in Credit verschieben (alte Logik)
-      if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
-        if (keepNegativeInDebit(desc)){
-          // keep as negative in debit
-        } else {
-          creditVal = Math.abs(debitVal);
-          debitVal = "";
-        }
-      }
-
-      // City Tax: VAT 3.8 + enabled
-      items.push({
-        date: normDate(date),
-        desc,
-        qty: qty === "" ? "" : qty,
-        unit: "",
-        debit: creditLike ? "" : (debitVal === "" ? "" : debitVal),  // kann negativ sein
-        credit: creditLike
-          ? (creditVal === "" ? (debitVal === "" ? "" : Math.abs(debitVal)) : Math.abs(creditVal))
-          : (creditVal === "" ? "" : Math.abs(creditVal)),
-        vatRate: defaultRate,
-        vatEnabled: true
-      });
-    }
-
-    // B) Fallback ohne Pipes
-    if (items.length === 0){
-      const lineRe = /^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.*?)\s+(\d{1,6})\s*([\-]?\(?\d[\d.,']*\)?)\s*$/;
-      for (const ln of lines){
-        const m = ln.match(lineRe);
-        if (!m) continue;
-
-        const date = m[1];
-        const desc = (m[2] || "").trim();
-        const qty = toNumber(m[3]);
-        const amount = parseMoneyCell(m[4]); // kann negativ sein
-
-        const creditLike = isCreditDesc(desc);
-
-        // ✅ Negative Beträge bei Accommodation/Manual/City Tax bleiben im Debit (negativ)
-        if (amount < 0 && keepNegativeInDebit(desc)){
-          items.push({
-            date: normDate(date),
-            desc,
-            qty,
-            unit: "",
-            debit: amount,   // NEGATIV
-            credit: "",
-            vatRate: defaultRate,
-            vatEnabled: true
-          });
-          continue;
-        }
-
-        // Standard
-        const negative = amount < 0;
-        items.push({
-          date: normDate(date),
-          desc,
-          qty,
-          unit: "",
-          debit: (!creditLike && !negative) ? Math.abs(amount) : (negative && keepNegativeInDebit(desc) ? amount : ""),
-          credit: (creditLike || negative) ? Math.abs(amount) : "",
-          vatRate: defaultRate,
-          vatEnabled: true
-        });
-      }
-    }
-
-    out.items = items;
-
-    const hasAnything =
-      !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
-      !!out.roomReservation || (out.items && out.items.length > 0) ||
-      !!out.buyerName || !!out.sellerName || !!out.reference;
-
-    return hasAnything ? out : null;
-  }
-
-  // -----------------------------
-  // Init
-  // -----------------------------
-  (function init(){
-    setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
-    setPill("importPill", "<b>Import:</b> bereit", "");
-    setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
-
-    state.items = [];
-    renderItems();
-    recalc();
-  })();
-</script>
-</body>
-</html>
-
