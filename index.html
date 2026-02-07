@@ -183,7 +183,7 @@
 
     .brandRow{
       display:grid;
-      grid-template-columns: 340px 1fr; /* groß aber ohne Deformierung */
+      grid-template-columns: 340px 1fr;
       gap:14px;
       align-items:start;
     }
@@ -191,7 +191,6 @@
       .brandRow{ grid-template-columns: 1fr; }
     }
 
-    /* LOGO: groß, aber NICHT deformieren */
     .logoBox{
       width:340px;
       height:160px;
@@ -291,7 +290,6 @@
       padding:10px;
     }
 
-    /* FOOTER: 2 Spalten (links/rechts fix) */
     .paperLegal{
       margin-top:12px;
       border-top:1px solid #eee;
@@ -350,7 +348,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">PDF-Import verbessert. Verkäuferadresse ist FIX (nicht editierbar). Credit-Zeilen sind beim Import automatisch ohne MwSt.</span>
+      <span class="hint">Verkäuferadresse ist FIX. Credit bleibt Credit, aber MwSt? ist beim Import für Credit automatisch „Nein“.</span>
     </div>
 
     <div class="bd">
@@ -439,7 +437,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Positionen</strong>
-          <span class="hint">Regel: Credit-Beträge werden beim Import standardmäßig ohne MwSt gesetzt (MwSt? = Nein).</span>
+          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert (gelb wie im Screenshot).</span>
         </div>
         <div class="bd" style="padding:0;">
           <div style="max-height:340px; overflow:auto;">
@@ -489,7 +487,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>MwSt-Aufschlüsselung (pro Satz)</strong>
-          <span class="hint">Steuerbasis je Satz = Summe steuerbarer Zeilen (Debit − Credit). Credit-Zeilen sind beim Import standardmäßig nicht steuerbar.</span>
+          <span class="hint">Steuerbasis je Satz = Summe steuerbarer Zeilen (Debit − Credit).</span>
         </div>
         <div class="bd">
           <table id="vatBreakdownTable">
@@ -633,9 +631,6 @@ Switzerland</textarea>
 </main>
 
 <script>
-  // =============================================================
-  // FIXED FOOTER (links/rechts)
-  // =============================================================
   const FIXED_FOOTER_LEFT = `Essendi Switzerland SA (ehem. AccorInvest)
 UBS SA
 Konto-Nr: 243-442422.05R
@@ -649,9 +644,6 @@ ibis Zurich Messe Airport
 Heidi Abel-Weg 5
 CH-8050`;
 
-  // -----------------------------
-  // CDN Kandidaten (mehrere Quellen)
-  // -----------------------------
   const LIBS = {
     pdfjs: [
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js",
@@ -695,14 +687,8 @@ CH-8050`;
     return "";
   }
 
-  // -----------------------------
-  // State
-  // -----------------------------
   const state = { items: [] };
 
-  // -----------------------------
-  // Helpers
-  // -----------------------------
   function toNumber(val){
     if (val === null || val === undefined) return 0;
     if (typeof val === "number") return isFinite(val) ? val : 0;
@@ -765,9 +751,6 @@ CH-8050`;
     el.textContent = val;
   }
 
-  // -----------------------------
-  // Rules
-  // -----------------------------
   function isPaymentDesc(desc){
     const d = String(desc || "").toLowerCase();
     return (
@@ -797,15 +780,14 @@ CH-8050`;
     );
   }
 
-  // NEU: Credit-Zeilen beim Import grundsätzlich ohne MwSt
-  function creditShouldDisableVat(item){
+  // ✅ NEU: Credit-Zeilen sind weiterhin Credit, aber MwSt standardmäßig aus
+  function shouldDisableVatByRule(item){
     const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-    return credit > 0;
+    if (credit > 0) return true;              // <-- exakt dein Wunsch
+    if (isPaymentDesc(item.desc)) return true;
+    return false;
   }
 
-  // -----------------------------
-  // PDF.js On-Demand Loader
-  // -----------------------------
   async function ensurePdfJsReady(){
     if (window.pdfjsLib) return true;
 
@@ -832,9 +814,6 @@ CH-8050`;
     return true;
   }
 
-  // -----------------------------
-  // Header-Spalten basierte Tabellen-Zeilen
-  // -----------------------------
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
 
@@ -969,9 +948,6 @@ CH-8050`;
     return outLines.join("\n");
   }
 
-  // -----------------------------
-  // Export libs On-Demand Loader
-  // -----------------------------
   async function ensureExportLibs(){
     if (!window.html2canvas){
       setPill("exportPill", "<b>Export:</b> html2canvas laden…", "");
@@ -986,9 +962,6 @@ CH-8050`;
     return ok;
   }
 
-  // -----------------------------
-  // Items table render
-  // -----------------------------
   const tbody = document.querySelector("#itemsTable tbody");
 
   function renderItems(){
@@ -1061,9 +1034,6 @@ CH-8050`;
     renderItems();
   });
 
-  // -----------------------------
-  // Recalc totals + VAT breakdown
-  // -----------------------------
   function recalc(){
     state.items = state.items.map(it => {
       const qty = toNumber(it.qty);
@@ -1080,7 +1050,7 @@ CH-8050`;
     let totalDebit = 0;
     let totalCredit = 0;
     for (const it of state.items){
-      totalDebit += (it.debit === "" ? 0 : toNumber(it.debit));   // kann negativ sein
+      totalDebit += (it.debit === "" ? 0 : toNumber(it.debit));
       totalCredit += (it.credit === "" ? 0 : toNumber(it.credit));
     }
     const balance = totalDebit - totalCredit;
@@ -1143,9 +1113,6 @@ CH-8050`;
     syncPrintable(totalDebit, totalCredit, balance);
   }
 
-  // -----------------------------
-  // Sync printable invoice
-  // -----------------------------
   function syncPrintable(totalDebit, totalCredit, balance){
     setText("p_invoiceNo", v("invoiceNo") || "—");
     setText("p_invoiceDate", v("invoiceDate") || "—");
@@ -1190,9 +1157,6 @@ CH-8050`;
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   }
 
-  // -----------------------------
-  // Export PDF
-  // -----------------------------
   document.getElementById("printBtn").addEventListener("click", () => { recalc(); window.print(); });
 
   document.getElementById("exportPdfBtn").addEventListener("click", async () => {
@@ -1261,14 +1225,10 @@ CH-8050`;
   });
 
   // =============================================================
-  // PARSER:
-  // - Niemals Seller-Felder überschreiben (bleiben FIX)
-  // - Kunde: komplette Adresse in buyerAddressBlock (eine Box)
-  // - MwSt beim Import:
-  //   - WENN Credit > 0 => vatEnabled=false (wie im Screenshot gelb)
-  //   - Payments (Deposit/Visa/Master/Amex) ebenfalls vatEnabled=false
-  //   - Sonst vatEnabled=true mit vatRate=3.8 (oder aus VAT %)
-  // - Negative Beträge bei City Tax / Accommodation / Manual... bleiben im Debit (negativ)
+  // PARSER (angepasst):
+  // 1) Credit bleibt Credit (wird nicht umgebucht)
+  // 2) MwSt? bei Credit beim Import: FALSE
+  // 3) Wort "Invoice" aus Kundenadresse entfernen
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1338,21 +1298,29 @@ CH-8050`;
       return n;
     }
 
-    // Buyer Address heuristics
+    function cleanupBuyerBlock(block){
+      const bl = String(block || "").split("\n").map(x=>x.trim()).filter(Boolean);
+      // Entferne Zeilen, die nur "INVOICE" oder mit "INVOICE" starten
+      const filtered = bl.filter(l => !/^invoice\b/i.test(l));
+      return filtered.join("\n").trim();
+    }
+
     (function parseBuyerAddress(){
       const idxTo = lines.findIndex(l => /^To$/i.test(l));
       if (idxTo >= 0){
-        const end = Math.min(lines.length, idxTo + 12);
-        const block = lines.slice(idxTo+1, end).join("\n").trim();
-        if (block) { out.buyerAddressBlock = block; return; }
+        let end = Math.min(lines.length, idxTo + 12);
+        const raw = lines.slice(idxTo+1, end).join("\n").trim();
+        const cleaned = cleanupBuyerBlock(raw);
+        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
       }
 
       const idxTax = lines.findIndex(l => /\b(TVA|VAT)\b\s*[:]/i.test(l));
       if (idxTax >= 0){
         const start = Math.max(0, idxTax - 2);
         const end = Math.min(lines.length, idxTax + 4);
-        const block = lines.slice(start, end).join("\n").trim();
-        if (block) { out.buyerAddressBlock = block; return; }
+        const raw = lines.slice(start, end).join("\n").trim();
+        const cleaned = cleanupBuyerBlock(raw);
+        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
       }
 
       const idxSL = lines.findIndex(l => /\bS\.L\.\b/i.test(l) || /TOUR\s+OPERATOR/i.test(l));
@@ -1367,8 +1335,9 @@ CH-8050`;
           end++;
           if (end - idxSL > 8) break;
         }
-        const block = lines.slice(idxSL, end).join("\n").trim();
-        if (block) { out.buyerAddressBlock = block; return; }
+        const raw = lines.slice(idxSL, end).join("\n").trim();
+        const cleaned = cleanupBuyerBlock(raw);
+        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
       }
     })();
 
@@ -1392,6 +1361,9 @@ CH-8050`;
       let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
       let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
 
+      // Falls Debit negativ ist und es keine Credit-Spalte gab:
+      // - bei (Accommodation/Manual/CityTax) bleibt negativ im Debit
+      // - sonst wird es zu Credit (positiv)
       if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
         if (!keepNegativeInDebit(desc)){
           creditVal = Math.abs(debitVal);
@@ -1399,7 +1371,7 @@ CH-8050`;
         }
       }
 
-      const baseItem = {
+      const item = {
         date: normDate(date),
         desc,
         qty: qty === "" ? "" : qty,
@@ -1410,16 +1382,15 @@ CH-8050`;
         vatEnabled: true
       };
 
-      // RULES: credit rows => no VAT; payments => no VAT
-      const payment = isPaymentDesc(desc);
-      const creditRow = creditShouldDisableVat(baseItem);
-
-      if (payment || creditRow){
-        baseItem.vatEnabled = false;
-        baseItem.vatRate = 0;
+      // ✅ Hauptänderung:
+      // Credit bleibt Credit (wir ändern nichts daran),
+      // aber MwSt? soll beim Import false sein, wenn Credit > 0.
+      if (shouldDisableVatByRule(item)){
+        item.vatEnabled = false;
+        item.vatRate = 0;
       }
 
-      items.push(baseItem);
+      items.push(item);
     }
 
     // B) Non-pipe fallback
@@ -1434,9 +1405,7 @@ CH-8050`;
         const qty = toNumber(m[3]);
         const amount = parseMoneyCell(m[4]); // can be negative
 
-        const payment = isPaymentDesc(desc);
-
-        let item = null;
+        let item;
 
         if (amount < 0 && keepNegativeInDebit(desc)){
           item = {
@@ -1449,23 +1418,31 @@ CH-8050`;
             vatRate: defaultRate,
             vatEnabled: true
           };
-        } else {
-          const negative = amount < 0;
+        } else if (amount < 0) {
           item = {
             date: normDate(date),
             desc,
             qty,
             unit: "",
-            debit: (!negative) ? Math.abs(amount) : "",
-            credit: (negative) ? Math.abs(amount) : "",
+            debit: "",
+            credit: Math.abs(amount),
+            vatRate: defaultRate,
+            vatEnabled: true
+          };
+        } else {
+          item = {
+            date: normDate(date),
+            desc,
+            qty,
+            unit: "",
+            debit: Math.abs(amount),
+            credit: "",
             vatRate: defaultRate,
             vatEnabled: true
           };
         }
 
-        // RULES: credit rows => no VAT; payments => no VAT
-        const creditRow = creditShouldDisableVat(item);
-        if (payment || creditRow){
+        if (shouldDisableVatByRule(item)){
           item.vatEnabled = false;
           item.vatRate = 0;
         }
@@ -1484,9 +1461,6 @@ CH-8050`;
     return hasAnything ? out : null;
   }
 
-  // -----------------------------
-  // Apply parsed (NEVER touch seller fields)
-  // -----------------------------
   function applyParsed(d){
     if (!d) return;
 
@@ -1504,9 +1478,6 @@ CH-8050`;
     renderItems();
   }
 
-  // -----------------------------
-  // PDF Import wiring
-  // -----------------------------
   const pdfFileInput = document.getElementById("pdfFile");
   const extractedTextEl = document.getElementById("extractedText");
 
@@ -1578,9 +1549,6 @@ CH-8050`;
     }
   });
 
-  // -----------------------------
-  // Init
-  // -----------------------------
   (function init(){
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("importPill", "<b>Import:</b> bereit", "");
