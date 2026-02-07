@@ -1,3 +1,4 @@
+```html
 <!doctype html>
 <html lang="de">
 <head>
@@ -110,7 +111,10 @@
       font: inherit;
     }
     .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    .toggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
+    .toggle{
+      display:flex; align-items:center; justify-content:center;
+      gap:6px;
+    }
     .toggle input{ transform: scale(1.05); }
 
     .hint{ font-size:11px; color:var(--muted); }
@@ -180,7 +184,7 @@
 
     .brandRow{
       display:grid;
-      grid-template-columns: 420px 1fr; /* groß, aber nicht übertrieben */
+      grid-template-columns: 340px 1fr; /* groß aber ohne Deformierung */
       gap:14px;
       align-items:start;
     }
@@ -188,10 +192,10 @@
       .brandRow{ grid-template-columns: 1fr; }
     }
 
-    /* LOGO: max. groß ohne Deformation */
+    /* LOGO: groß, aber NICHT deformieren */
     .logoBox{
-      width:420px;
-      height:200px;
+      width:340px;
+      height:160px;
       border:1px solid #e6e6e6;
       border-radius:16px;
       display:flex;
@@ -205,8 +209,8 @@
     .logoBox img{
       max-width:100%;
       max-height:100%;
-      width:auto;      /* wichtig gegen Deformation */
-      height:auto;     /* wichtig gegen Deformation */
+      width:auto;
+      height:auto;
       object-fit:contain;
       display:block;
     }
@@ -221,7 +225,11 @@
     }
     .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
 
-    .meta{ display:grid; grid-template-columns: 1fr; gap:8px; }
+    .meta{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:8px;
+    }
     .meta .kv{
       display:flex;
       justify-content:space-between;
@@ -273,7 +281,9 @@
       border-radius:12px;
       padding:10px;
     }
-    .paperTotals .line{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; }
+    .paperTotals .line{
+      display:flex; justify-content:space-between; gap:10px; padding:4px 0;
+    }
     .paperTotals .line b{ font-weight:900; }
 
     .paperVat{
@@ -333,7 +343,6 @@
     <button class="btn" id="addRowBtn" type="button">+ Position</button>
 
     <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
-    <!-- ✅ PDF Export ist vorhanden: -->
     <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
   </div>
 </header>
@@ -342,7 +351,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">Nur 1 Feld für Kunde: „Adresse Kunde“ (inkl. Name/Firma). Verkäuferadresse ist FIX.</span>
+      <span class="hint">PDF-Import verbessert. Verkäuferadresse ist FIX (nicht editierbar). Kunde nur als „Adresse Kunde“.</span>
     </div>
 
     <div class="bd">
@@ -374,8 +383,8 @@ Switzerland</textarea>
 
       <div class="grid2">
         <div>
-          <label>Adresse Kunde (ein Feld) – inkl. Name/Firma</label>
-          <textarea id="buyerAddressBlock" class="field"></textarea>
+          <label>Adresse Kunde (ein Feld)</label>
+          <textarea id="buyerAddressBlock" class="field" placeholder="Wird beim Import automatisch befüllt…"></textarea>
         </div>
         <div>
           <label>Referenz / Gastname</label>
@@ -431,7 +440,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Positionen</strong>
-          <span class="hint">Minus bei Accommodation/Manual/City Tax bleibt im Debit (negativ) beim Einlesen.</span>
+          <span class="hint">MwSt wird beim Import direkt gesetzt. Payments (Deposit/Visa/Master/Amex) sind automatisch ohne MwSt.</span>
         </div>
         <div class="bd" style="padding:0;">
           <div style="max-height:340px; overflow:auto;">
@@ -603,8 +612,7 @@ Switzerland</textarea>
 
       <div class="noPrint" style="margin-top:10px;">
         <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“.
-          Falls Export im Betrieb blockiert ist → Drucken nutzen.
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
         </div>
       </div>
 
@@ -759,6 +767,38 @@ CH-8050`;
   }
 
   // -----------------------------
+  // VAT / Payment Heuristics
+  // -----------------------------
+  function isPaymentDesc(desc){
+    const d = String(desc || "").toLowerCase();
+    return (
+      d.includes("deposit") ||
+      d.includes("transfer") ||
+      d.includes("payment") ||
+      d.includes("paid") ||
+      d.includes("voucher") ||
+      d.includes("prepayment") ||
+      d.includes("advance") ||
+      d.includes("amex") || d.includes("american express") ||
+      d.includes("master") || d.includes("mastercard") ||
+      d.includes("visa") ||
+      d.includes("credit card") ||
+      d.includes("card")
+    );
+  }
+  function keepNegativeInDebit(desc){
+    const d = String(desc || "").toLowerCase();
+    return (
+      d.includes("manual accomodation") ||
+      d.includes("manual accommodation") ||
+      d.includes("accomodation") ||
+      d.includes("accommodation") ||
+      d.includes("city tax") ||
+      d.includes("city taxe")
+    );
+  }
+
+  // -----------------------------
   // PDF.js On-Demand Loader
   // -----------------------------
   async function ensurePdfJsReady(){
@@ -833,6 +873,7 @@ CH-8050`;
       }
     }
 
+    // Wenn Header nicht gefunden: einfach ganze Seite als Text.
     if (headerY === null){
       const out = [];
       for (const yKey of yKeys){
@@ -1118,8 +1159,8 @@ CH-8050`;
     const sellerBlock = [ v("sellerName"), v("sellerAddressBlock"), v("sellerContact"), v("sellerExtra") ].filter(Boolean).join("\n");
     setText("p_seller", sellerBlock);
 
-    // ✅ nur ein Feld: buyerAddressBlock (inkl. Name+Adresse)
-    setText("p_buyer", v("buyerAddressBlock") || "—");
+    // Kunde: nur ein Feld
+    setText("p_buyer", (v("buyerAddressBlock") || "").trim());
 
     setText("p_reference", v("reference") || "—");
 
@@ -1148,7 +1189,7 @@ CH-8050`;
   }
 
   // -----------------------------
-  // Print & PDF Export
+  // Export PDF
   // -----------------------------
   document.getElementById("printBtn").addEventListener("click", () => { recalc(); window.print(); });
 
@@ -1156,10 +1197,14 @@ CH-8050`;
     try{
       recalc();
       const ok = await ensureExportLibs();
-      if (!ok){ alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“."); return; }
+      if (!ok){
+        alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“.");
+        return;
+      }
 
       const paper = document.getElementById("invoicePaper");
       let canvas;
+
       try{
         canvas = await html2canvas(paper, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
         canvas.toDataURL("image/png");
@@ -1215,9 +1260,12 @@ CH-8050`;
 
   // =============================================================
   // PARSER:
-  // - Kunde: kompletter Block in buyerAddressBlock (inkl. Name)
-  // - Niemals Seller-Felder überschreiben
-  // - Negative Beträge bei City Tax / Accommodation / Manual Accomodation => Debit bleibt NEGATIV
+  // - Niemals Seller-Felder überschreiben (bleiben FIX)
+  // - Kunde: komplette Adresse in buyerAddressBlock (eine Box)
+  // - MwSt direkt beim Import setzen:
+  //   - Standard: vatEnabled=true, vatRate=3.8
+  //   - Payments (Deposit/Visa/Master/Amex): vatEnabled=false, vatRate=0
+  // - Negative Beträge bei City Tax / Accommodation / Manual... bleiben im Debit (negativ)
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1262,48 +1310,22 @@ CH-8050`;
     const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
     if (roomRes1) out.roomReservation = roomRes1;
     if (!out.roomReservation){
-      const rm = pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
-      const rs = pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
+      const rm = pick(/\bRoom\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
+      const rs = pick(/\bReservation\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
       if (rm || rs){
         out.roomReservation = [rm ? `Room ${rm}` : "", rs ? `Reservation ${rs}` : ""].filter(Boolean).join(" | ");
       }
     }
 
+    // Gastname / Reference aus dem Original (Guest Name / Reference)
     out.reference =
-      pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
-      pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*\n\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
+      pick(/\bGuest\s*Name\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
+      pick(/\bReference\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
+      pick(/\bGastname\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
 
-    // ✅ Buyer Block: alles in 1 Feld (inkl. Name)
-    (function parseBuyerBlock(){
-      const idxTo = lines.findIndex(l => /^To$/i.test(l));
-      const idxRef = lines.findIndex(l => /^Reference\b/i.test(l) || /^Gastname\b/i.test(l) || /^Guest\b/i.test(l));
-      const idxTbl = lines.findIndex(l => /^Date\s+VAT\s+Description/i.test(l) || /^Date\s+Description/i.test(l));
-
-      if (idxTo >= 0){
-        const end = (idxRef > idxTo ? idxRef : (idxTbl > idxTo ? idxTbl : Math.min(lines.length, idxTo+14)));
-        const block = lines.slice(idxTo+1, end).filter(Boolean).join("\n").trim();
-        if (block) out.buyerAddressBlock = block;
-      }
-
-      if (!out.reference && idxRef >= 0){
-        const same = lines[idxRef] || "";
-        const mSame = same.match(/^(?:Reference|Gastname|Guest\s*name|Guest)\s*[:\-]?\s*(.+)$/i);
-        if (mSame && (mSame[1] || "").trim() && (mSame[1] || "").trim() !== "—") {
-          out.reference = (mSame[1] || "").trim();
-        } else {
-          const next = lines[idxRef+1] || "";
-          if (next && !/^Date\s+/i.test(next) && next !== "—") out.reference = next;
-        }
-      }
-    })();
-
+    // Default VAT rate aus "VAT 3.8%"
     const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
-
-    const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc || "");
-
-    const keepNegativeInDebit = (desc) =>
-      /(manual\s+accomodation|accomodation|accommodation|city\s*tax|city\s*taxe)/i.test(desc || "");
 
     function parseMoneyCell(s){
       const raw = String(s || "").trim();
@@ -1315,9 +1337,53 @@ CH-8050`;
       return n;
     }
 
-    const items = [];
+    // -------------------------
+    // Buyer address extraction (Original ibis PDF hat i.d.R. KEIN "To")
+    // Strategie:
+    // 1) Suche Block mit "TVA:" oder "VAT:" (spanische Adresse) und nimm 1-2 Zeilen davor + danach
+    // 2) Falls "To" existiert (bei anderem Layout), nutze das
+    // -------------------------
+    (function parseBuyerAddress(){
+      // A) Wenn "To" existiert
+      const idxTo = lines.findIndex(l => /^To$/i.test(l));
+      if (idxTo >= 0){
+        const end = Math.min(lines.length, idxTo + 12);
+        const block = lines.slice(idxTo+1, end).join("\n").trim();
+        if (block) { out.buyerAddressBlock = block; return; }
+      }
 
-    // A) Pipe lines
+      // B) Heuristik: finde Zeile mit TVA/VAT Nummer
+      const idxTax = lines.findIndex(l => /\b(TVA|VAT)\b\s*[:]/i.test(l));
+      if (idxTax >= 0){
+        // nimm bis zu 2 Zeilen darüber (Firma/Adresse), und bis zu 3 darunter (PLZ/Stadt/Land)
+        const start = Math.max(0, idxTax - 2);
+        const end = Math.min(lines.length, idxTax + 4);
+        const block = lines.slice(start, end).join("\n").trim();
+        if (block) { out.buyerAddressBlock = block; return; }
+      }
+
+      // C) Fallback: suche bekannte Firma (z.B. S.L.) und nimm Block bis zur nächsten klaren Sektion (INVOICE / Invoice No / Date)
+      const idxSL = lines.findIndex(l => /\bS\.L\.\b/i.test(l) || /TOUR\s+OPERATOR/i.test(l));
+      if (idxSL >= 0){
+        let end = idxSL + 1;
+        while (end < lines.length){
+          const l = lines[end];
+          if (/^INVOICE$/i.test(l)) break;
+          if (/^Invoice\s*No\.?/i.test(l)) break;
+          if (/^Date\b/i.test(l)) break;
+          if (/^\d{2}[./]\d{2}[./]\d{2,4}\b/.test(l)) break;
+          end++;
+          if (end - idxSL > 8) break;
+        }
+        const block = lines.slice(idxSL, end).join("\n").trim();
+        if (block) { out.buyerAddressBlock = block; return; }
+      }
+    })();
+
+    // -------------------------
+    // Items (A) Pipe-Spalten
+    // -------------------------
+    const items = [];
     for (const line of lines){
       if (!line.includes("|")) continue;
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
@@ -1335,8 +1401,8 @@ CH-8050`;
       let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
       let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
 
-      const creditLike = isCreditDesc(desc);
-
+      // Regel: wenn debit negativ und KEIN credit: normalerweise würde man es in Credit schieben,
+      // aber bei Accommodation/Manual/CityTax soll es NEGATIV im Debit bleiben.
       if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
         if (!keepNegativeInDebit(desc)){
           creditVal = Math.abs(debitVal);
@@ -1344,22 +1410,25 @@ CH-8050`;
         }
       }
 
+      const payment = isPaymentDesc(desc);
+
       items.push({
         date: normDate(date),
         desc,
         qty: qty === "" ? "" : qty,
         unit: "",
-        debit: creditLike ? "" : (debitVal === "" ? "" : debitVal),
-        credit: creditLike
-          ? (creditVal === "" ? (debitVal === "" ? "" : Math.abs(debitVal)) : Math.abs(creditVal))
-          : (creditVal === "" ? "" : Math.abs(creditVal)),
-        vatRate: defaultRate,
-        vatEnabled: true
+        debit: (debitVal === "" ? "" : debitVal),         // kann negativ sein
+        credit: (creditVal === "" ? "" : Math.abs(creditVal)),
+        vatRate: payment ? 0 : defaultRate,
+        vatEnabled: payment ? false : true
       });
     }
 
-    // B) Non-pipe fallback
+    // -------------------------
+    // Items (B) Text-Fallback (ohne Pipes)
+    // -------------------------
     if (items.length === 0){
+      // Beispiel: 02.01.26 City Tax 51 178.50
       const lineRe = /^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.*?)\s+(\d{1,6})\s*([\-]?\(?\d[\d.,']*\)?)\s*$/;
       for (const ln of lines){
         const m = ln.match(lineRe);
@@ -1368,9 +1437,9 @@ CH-8050`;
         const date = m[1];
         const desc = (m[2] || "").trim();
         const qty = toNumber(m[3]);
-        const amount = parseMoneyCell(m[4]);
+        const amount = parseMoneyCell(m[4]); // can be negative
 
-        const creditLike = isCreditDesc(desc);
+        const payment = isPaymentDesc(desc);
 
         if (amount < 0 && keepNegativeInDebit(desc)){
           items.push({
@@ -1378,29 +1447,32 @@ CH-8050`;
             desc,
             qty,
             unit: "",
-            debit: amount,
+            debit: amount,   // keep negative
             credit: "",
-            vatRate: defaultRate,
-            vatEnabled: true
+            vatRate: payment ? 0 : defaultRate,
+            vatEnabled: payment ? false : true
           });
           continue;
         }
 
         const negative = amount < 0;
+
+        // Standard: negative -> credit, außer keepNegativeInDebit
         items.push({
           date: normDate(date),
           desc,
           qty,
           unit: "",
-          debit: (!creditLike && !negative) ? Math.abs(amount) : "",
-          credit: (creditLike || negative) ? Math.abs(amount) : "",
-          vatRate: defaultRate,
-          vatEnabled: true
+          debit: (!negative) ? Math.abs(amount) : "",
+          credit: (negative) ? Math.abs(amount) : "",
+          vatRate: payment ? 0 : defaultRate,
+          vatEnabled: payment ? false : true
         });
       }
     }
 
     out.items = items;
+
     const hasAnything =
       !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
       !!out.roomReservation || (out.items && out.items.length > 0) ||
@@ -1515,9 +1587,11 @@ CH-8050`;
     renderItems();
     recalc();
 
+    // fixed footer
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   })();
 </script>
 </body>
 </html>
+```
