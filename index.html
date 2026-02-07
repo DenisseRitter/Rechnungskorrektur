@@ -183,7 +183,7 @@
 
     .brandRow{
       display:grid;
-      grid-template-columns: 320px 1fr; /* größer für Logo */
+      grid-template-columns: 390px 1fr; /* LOGO noch größer */
       gap:14px;
       align-items:start;
     }
@@ -191,10 +191,10 @@
       .brandRow{ grid-template-columns: 1fr; }
     }
 
-    /* LOGO: größer + klarer */
+    /* LOGO: noch ein bisschen größer + klarer */
     .logoBox{
-      width:320px;     /* deutlich größer */
-      height:150px;
+      width:390px;
+      height:190px;
       border:1px solid #e6e6e6;
       border-radius:14px;
       display:flex;
@@ -203,14 +203,13 @@
       overflow:hidden;
       background:#fff;
       box-shadow: 0 2px 10px rgba(0,0,0,.06);
-      padding:10px;
+      padding:12px;
     }
     .logoBox img{
       width:100%;
       height:100%;
       object-fit:contain;
       display:block;
-      image-rendering:auto;
     }
 
     .sellerHead{
@@ -305,13 +304,8 @@
       gap:14px;
       align-items:start;
     }
-    .paperLegalCol{
-      white-space:pre-wrap;
-    }
-    .paperLegalCol.right{
-      text-align:right;
-      white-space:pre-wrap;
-    }
+    .paperLegalCol{ white-space:pre-wrap; }
+    .paperLegalCol.right{ text-align:right; white-space:pre-wrap; }
     @media (max-width: 650px){
       .paperLegalGrid{ grid-template-columns: 1fr; }
       .paperLegalCol.right{ text-align:left; }
@@ -615,7 +609,6 @@ Switzerland</textarea>
           </div>
         </div>
 
-        <!-- FIXED FOOTER (links/rechts) -->
         <div class="paperLegal">
           <div class="paperLegalGrid">
             <div class="paperLegalCol" id="p_legalLeft"></div>
@@ -652,7 +645,7 @@ Switzerland</textarea>
 
 <script>
   // =============================================================
-  // 1) FIXED FOOTER (links/rechts) – wie von dir vorgegeben
+  // FIXED FOOTER (links/rechts)
   // =============================================================
   const FIXED_FOOTER_LEFT = `Essendi Switzerland SA (ehem. AccorInvest)
 UBS SA
@@ -707,12 +700,8 @@ CH-8050`;
   }
   async function loadAny(candidates){
     for (const url of candidates){
-      try{
-        await loadScriptOnce(url);
-        return url;
-      } catch (e){
-        console.warn(e);
-      }
+      try{ await loadScriptOnce(url); return url; }
+      catch (e){ console.warn(e); }
     }
     return "";
   }
@@ -740,11 +729,8 @@ CH-8050`;
       const lastDot = s.lastIndexOf(".");
       const lastComma = s.lastIndexOf(",");
       const decIsComma = lastComma > lastDot;
-      if (decIsComma){
-        s = s.replace(/\./g,"").replace(",",".");
-      } else {
-        s = s.replace(/,/g,"");
-      }
+      if (decIsComma) s = s.replace(/\./g,"").replace(",",".");
+      else s = s.replace(/,/g,"");
     } else if (hasComma && !hasDot){
       s = s.replace(",",".");
     } else {
@@ -821,7 +807,6 @@ CH-8050`;
 
   // -----------------------------
   // Header-Spalten basierte Tabellen-Zeilen
-  // (robuster: mehr Header-Varianten, weniger "verschlucken")
   // -----------------------------
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
@@ -852,7 +837,6 @@ CH-8050`;
 
     const norm = (s) => s.toLowerCase().replace(/[^a-z0-9%]+/g," ").replace(/\s+/g," ").trim();
 
-    // Header finden (Date/Description/Qty/Debit/Credit — VAT optional)
     let headerY = null;
     for (const yKey of yKeys){
       const t = norm(rowText(yKey));
@@ -867,7 +851,6 @@ CH-8050`;
       }
     }
 
-    // wenn Header nicht gefunden: alles Zeilen-weise zurück
     if (headerY === null){
       const out = [];
       for (const yKey of yKeys){
@@ -885,13 +868,12 @@ CH-8050`;
     }
 
     const xDate   = findX(/^Date$/i) ?? 0;
-    const xVAT    = findX(/^VAT$/i); // optional
+    const xVAT    = findX(/^VAT$/i);
     const xDesc   = findX(/^Description$/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
     const xQty    = findX(/^Qty\.?$/i) ?? (xDesc + 220);
     const xDebit  = findX(/^Debit$/i) ?? (xQty + 60);
     const xCredit = findX(/^Credit$/i) ?? (xDebit + 80);
 
-    // wenn VAT nicht da, setze "virtuell" zwischen Date und Description
     const xVatResolved = (xVAT ?? ((xDate + xDesc) / 2));
 
     const bounds = [
@@ -946,7 +928,6 @@ CH-8050`;
       }
 
       const date = joinParts(buckets.date);
-      // akzeptiere dd.mm.yyyy und dd.mm.yy
       if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
 
       const vat    = joinParts(buckets.vat);
@@ -955,7 +936,6 @@ CH-8050`;
       const debit  = joinParts(buckets.debit);
       const credit = joinParts(buckets.credit);
 
-      // Pipe-Format: date | vat | desc | qty | debit | credit
       outLines.push([date, vat, desc, qty, debit, credit].join(" | ").trim());
     }
 
@@ -1073,7 +1053,7 @@ CH-8050`;
     let totalDebit = 0;
     let totalCredit = 0;
     for (const it of state.items){
-      totalDebit += (it.debit === "" ? 0 : toNumber(it.debit));
+      totalDebit += (it.debit === "" ? 0 : toNumber(it.debit));   // kann negativ sein
       totalCredit += (it.credit === "" ? 0 : toNumber(it.credit));
     }
     const balance = totalDebit - totalCredit;
@@ -1093,7 +1073,7 @@ CH-8050`;
       if (lineAmount === 0) continue;
 
       const prev = groups.get(rate) || { gross: 0 };
-      prev.gross += lineAmount;
+      prev.gross += lineAmount; // kann auch negativ sein
       groups.set(rate, prev);
     }
 
@@ -1183,20 +1163,16 @@ CH-8050`;
     setText("p_totalCredit", fmt(totalCredit));
     setText("p_balance", fmt(balance));
 
-    // FIXED Footer links/rechts
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   }
 
-  const headerInputs = [
+  [
     "sellerName","sellerContact","sellerExtra","sellerAddressBlock",
     "buyerName","buyerAddressBlock","reference",
     "invoiceNo","invoiceDate","currency",
     "arrival","departure","roomReservation"
-  ];
-  headerInputs.forEach(id => {
-    document.getElementById(id).addEventListener("input", recalc);
-  });
+  ].forEach(id => document.getElementById(id).addEventListener("input", recalc));
 
   // -----------------------------
   // Print
@@ -1223,11 +1199,7 @@ CH-8050`;
 
       let canvas;
       try{
-        canvas = await html2canvas(paper, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff"
-        });
+        canvas = await html2canvas(paper, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
         canvas.toDataURL("image/png");
       } catch (e1){
         console.warn("Export attempt 1 failed (tainted?). Retrying without logo…", e1);
@@ -1251,7 +1223,6 @@ CH-8050`;
       }
 
       const imgData = canvas.toDataURL("image/png");
-
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF("p", "mm", "a4");
 
@@ -1394,7 +1365,6 @@ CH-8050`;
   function applyParsed(d){
     if (!d) return;
 
-    // nur setzen, wenn vorhanden (damit man manuell überschreiben kann)
     if (d.sellerName) setV("sellerName", d.sellerName);
     if (d.sellerContact) setV("sellerContact", d.sellerContact);
     if (d.sellerExtra) setV("sellerExtra", d.sellerExtra);
@@ -1418,8 +1388,8 @@ CH-8050`;
   }
 
   // =============================================================
-  // 2) Import-Parser (robuster: Room/Reservation, From/To Blöcke,
-  //    bessere Item-Zeilen-Erkennung)
+  // PARSER (Fix: negative Beträge für Accommodation/Manual/City Tax
+  // bleiben im Debit als negativer Betrag)
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1450,10 +1420,8 @@ CH-8050`;
 
     const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
 
-    // --- Header fields (sehr tolerant) ---
     out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) || pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
 
-    // Date / Arrival / Departure: dd.mm.yyyy oder dd/mm/yyyy
     out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
@@ -1462,15 +1430,12 @@ CH-8050`;
     if (out.arrival) out.arrival = normDate(out.arrival);
     if (out.departure) out.departure = normDate(out.departure);
 
-    // Currency
     out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
     if (!out.currency){
       const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
       if (m) out.currency = m[1];
     }
 
-    // Room / Reservation (passt zu deinem ibis Layout)
-    // z.B. "Room 9298 | Reservation 595951871079" oder "Room 9298 Reservation 595..."
     const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
     if (roomRes1) out.roomReservation = roomRes1;
     if (!out.roomReservation){
@@ -1481,64 +1446,19 @@ CH-8050`;
       }
     }
 
-    // Reference (falls vorhanden)
-    out.reference = pick(/\bReference\s*[:\-]?\s*(.+)$/im);
+    out.reference =
+      pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
+      pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*\n\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
 
-    // --- From / To Blocks (wenn im Text vorhanden) ---
-    // Wir nehmen zuerst "From ... To ..." Blöcke, weil das am zuverlässigsten ist.
-    (function parseFromTo(){
-      const idxFrom = lines.findIndex(l => /^From$/i.test(l));
-      const idxTo   = lines.findIndex(l => /^To$/i.test(l));
-      const idxRef  = lines.findIndex(l => /^Reference$/i.test(l));
-      const idxTbl  = lines.findIndex(l => /^Date\s+VAT\s+Description/i.test(l) || /^Date\s+Description/i.test(l));
-
-      // Seller block
-      if (idxFrom >= 0){
-        const end = (idxTo > idxFrom ? idxTo : (idxRef > idxFrom ? idxRef : (idxTbl > idxFrom ? idxTbl : Math.min(lines.length, idxFrom+10))));
-        const block = lines.slice(idxFrom+1, end).filter(Boolean).join("\n").trim();
-        if (block){
-          const bl = block.split("\n").map(s=>s.trim()).filter(Boolean);
-          out.sellerName = bl[0] || out.sellerName;
-          out.sellerAddressBlock = bl.slice(1).join("\n").trim() || out.sellerAddressBlock;
-        }
-      }
-
-      // Buyer block
-      if (idxTo >= 0){
-        const end = (idxRef > idxTo ? idxRef : (idxTbl > idxTo ? idxTbl : Math.min(lines.length, idxTo+14)));
-        const block = lines.slice(idxTo+1, end).filter(Boolean).join("\n").trim();
-        if (block){
-          const bl = block.split("\n").map(s=>s.trim()).filter(Boolean);
-          out.buyerName = bl[0] || out.buyerName;
-          out.buyerAddressBlock = bl.slice(1).join("\n").trim() || out.buyerAddressBlock;
-        }
-      }
-
-      // Reference value under "Reference" line (wenn layout so ist)
-      if (idxRef >= 0){
-        const maybe = lines[idxRef+1] || "";
-        if (maybe && !/^Date\s+/i.test(maybe) && maybe.length < 120){
-          out.reference = out.reference || maybe;
-        }
-      }
-    })();
-
-    // Fallback Seller/Buyer if still empty (typisch bei "rohem" Text)
-    if (!out.sellerName){
-      const sIdx = lines.findIndex(l => /ibis\s+zurich\s+messe\s+airport/i.test(l));
-      if (sIdx >= 0){
-        out.sellerName = lines[sIdx];
-        out.sellerAddressBlock = lines.slice(sIdx+1, sIdx+6).join("\n");
-      }
-    }
-
-    // --- Items ---
-    // Default VAT rate from any "VAT x%" in doc
+    // Default VAT rate (VAT x%)
     const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
 
     const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc);
-    const isCityTaxDesc = (desc) => /(city\s*tax|tourist\s*tax|taxe\s*de\s*s[eé]jour|kurtaxe)/i.test(desc);
+
+    // ✅ Diese Texte sollen negative Beträge im Debit behalten (nicht Credit)
+    const keepNegativeInDebit = (desc) =>
+      /(manual\s+accomodation|accomodation|accommodation|city\s*tax)/i.test(desc || "");
 
     function parseMoneyCell(s){
       const raw = String(s || "").trim();
@@ -1550,28 +1470,24 @@ CH-8050`;
       return n;
     }
 
-    // A) Pipe-Format (aus PDF Extractor)
     const items = [];
+
+    // A) Pipe-Format
     for (const line of lines){
       if (!line.includes("|")) continue;
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
 
-      // Erwartet: date | vat | desc | qty | debit | credit
       const date = parts[0] || "";
       if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
 
-      // robustes Mapping:
-      // wenn VAT fehlt, kann parts[1] desc sein -> dann verschieben
       let vatCell = parts[1] ?? "";
       let descCell = parts[2] ?? "";
       let qtyCell = parts[3] ?? "";
       let debitCell = parts[4] ?? "";
       let creditCell = parts[5] ?? "";
 
-      // Heuristik: VAT ist typischerweise wie "3.8%" oder "3,8%" oder leer.
       const looksLikeVat = (s) => !s ? true : /^[0-9]+([.,][0-9]+)?%?$/.test(s);
       if (!looksLikeVat(vatCell) && looksLikeVat(descCell)){
-        // shift left (VAT fehlt)
         descCell = vatCell;
         qtyCell = parts[2] ?? "";
         debitCell = parts[3] ?? "";
@@ -1585,64 +1501,85 @@ CH-8050`;
       let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
       let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
 
-      // Negative debit => credit
-      if (debitVal !== "" && debitVal < 0){
-        creditVal = Math.abs(debitVal);
-        debitVal = "";
-      }
-
-      const city = isCityTaxDesc(desc);
       const creditLike = isCreditDesc(desc);
 
+      // ✅ Wenn negativer Betrag im Debit steht:
+      // - bei Accommodation/Manual/City Tax => Debit NEGATIV lassen
+      // - sonst => in Credit verschieben (alte Logik)
+      if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
+        if (keepNegativeInDebit(desc)){
+          // keep as negative in debit
+        } else {
+          creditVal = Math.abs(debitVal);
+          debitVal = "";
+        }
+      }
+
+      // City Tax: VAT 3.8 + enabled
       items.push({
         date: normDate(date),
         desc,
         qty: qty === "" ? "" : qty,
         unit: "",
-        debit: creditLike ? "" : (debitVal === "" ? "" : Math.abs(debitVal)),
+        debit: creditLike ? "" : (debitVal === "" ? "" : debitVal),  // kann negativ sein
         credit: creditLike
           ? (creditVal === "" ? (debitVal === "" ? "" : Math.abs(debitVal)) : Math.abs(creditVal))
           : (creditVal === "" ? "" : Math.abs(creditVal)),
-        vatRate: city ? 0.0 : defaultRate,
-        vatEnabled: city ? false : true
+        vatRate: defaultRate,
+        vatEnabled: true
       });
     }
 
-    // B) Fallback ohne Pipes (dd.mm.yy + text + qty + amount)
+    // B) Fallback ohne Pipes
     if (items.length === 0){
       const lineRe = /^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.*?)\s+(\d{1,6})\s*([\-]?\(?\d[\d.,']*\)?)\s*$/;
       for (const ln of lines){
         const m = ln.match(lineRe);
         if (!m) continue;
+
         const date = m[1];
         const desc = (m[2] || "").trim();
         const qty = toNumber(m[3]);
-        const amount = parseMoneyCell(m[4]);
+        const amount = parseMoneyCell(m[4]); // kann negativ sein
 
         const creditLike = isCreditDesc(desc);
-        const city = isCityTaxDesc(desc);
-        const negative = amount < 0;
 
+        // ✅ Negative Beträge bei Accommodation/Manual/City Tax bleiben im Debit (negativ)
+        if (amount < 0 && keepNegativeInDebit(desc)){
+          items.push({
+            date: normDate(date),
+            desc,
+            qty,
+            unit: "",
+            debit: amount,   // NEGATIV
+            credit: "",
+            vatRate: defaultRate,
+            vatEnabled: true
+          });
+          continue;
+        }
+
+        // Standard
+        const negative = amount < 0;
         items.push({
           date: normDate(date),
           desc,
           qty,
           unit: "",
-          debit: (!creditLike && !negative) ? Math.abs(amount) : "",
+          debit: (!creditLike && !negative) ? Math.abs(amount) : (negative && keepNegativeInDebit(desc) ? amount : ""),
           credit: (creditLike || negative) ? Math.abs(amount) : "",
-          vatRate: city ? 0.0 : defaultRate,
-          vatEnabled: city ? false : true
+          vatRate: defaultRate,
+          vatEnabled: true
         });
       }
     }
 
     out.items = items;
 
-    // mindestens etwas erkannt?
     const hasAnything =
       !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
       !!out.roomReservation || (out.items && out.items.length > 0) ||
-      !!out.buyerName || !!out.sellerName;
+      !!out.buyerName || !!out.sellerName || !!out.reference;
 
     return hasAnything ? out : null;
   }
@@ -1655,7 +1592,6 @@ CH-8050`;
     setPill("importPill", "<b>Import:</b> bereit", "");
     setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
 
-    // Startzustand
     state.items = [];
     renderItems();
     recalc();
