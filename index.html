@@ -110,10 +110,7 @@
       font: inherit;
     }
     .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    .toggle{
-      display:flex; align-items:center; justify-content:center;
-      gap:6px;
-    }
+    .toggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
     .toggle input{ transform: scale(1.05); }
 
     .hint{ font-size:11px; color:var(--muted); }
@@ -183,7 +180,7 @@
 
     .brandRow{
       display:grid;
-      grid-template-columns: 460px 1fr; /* LOGO noch größer */
+      grid-template-columns: 420px 1fr; /* groß, aber nicht übertrieben */
       gap:14px;
       align-items:start;
     }
@@ -191,10 +188,10 @@
       .brandRow{ grid-template-columns: 1fr; }
     }
 
-    /* LOGO: größer + klar */
+    /* LOGO: max. groß ohne Deformation */
     .logoBox{
-      width:460px;
-      height:220px;
+      width:420px;
+      height:200px;
       border:1px solid #e6e6e6;
       border-radius:16px;
       display:flex;
@@ -203,11 +200,13 @@
       overflow:hidden;
       background:#fff;
       box-shadow: 0 2px 10px rgba(0,0,0,.06);
-      padding:14px;
+      padding:12px;
     }
     .logoBox img{
-      width:100%;
-      height:100%;
+      max-width:100%;
+      max-height:100%;
+      width:auto;      /* wichtig gegen Deformation */
+      height:auto;     /* wichtig gegen Deformation */
       object-fit:contain;
       display:block;
     }
@@ -222,11 +221,7 @@
     }
     .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
 
-    .meta{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:8px;
-    }
+    .meta{ display:grid; grid-template-columns: 1fr; gap:8px; }
     .meta .kv{
       display:flex;
       justify-content:space-between;
@@ -278,9 +273,7 @@
       border-radius:12px;
       padding:10px;
     }
-    .paperTotals .line{
-      display:flex; justify-content:space-between; gap:10px; padding:4px 0;
-    }
+    .paperTotals .line{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; }
     .paperTotals .line b{ font-weight:900; }
 
     .paperVat{
@@ -340,6 +333,7 @@
     <button class="btn" id="addRowBtn" type="button">+ Position</button>
 
     <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
+    <!-- ✅ PDF Export ist vorhanden: -->
     <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
   </div>
 </header>
@@ -348,7 +342,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">PDF-Import verbessert. Verkäuferadresse ist FIX (nicht editierbar).</span>
+      <span class="hint">Nur 1 Feld für Kunde: „Adresse Kunde“ (inkl. Name/Firma). Verkäuferadresse ist FIX.</span>
     </div>
 
     <div class="bd">
@@ -380,20 +374,13 @@ Switzerland</textarea>
 
       <div class="grid2">
         <div>
-          <label>Kunde</label>
-          <input id="buyerName" class="field" value="" />
+          <label>Adresse Kunde (ein Feld) – inkl. Name/Firma</label>
+          <textarea id="buyerAddressBlock" class="field"></textarea>
         </div>
         <div>
           <label>Referenz / Gastname</label>
           <input id="reference" class="field" value="" />
         </div>
-      </div>
-
-      <div style="height:10px;"></div>
-
-      <div>
-        <label>Adresse Kunde (ein Feld)</label>
-        <textarea id="buyerAddressBlock" class="field"></textarea>
       </div>
 
       <div style="height:14px;"></div>
@@ -616,7 +603,8 @@ Switzerland</textarea>
 
       <div class="noPrint" style="margin-top:10px;">
         <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“.
+          Falls Export im Betrieb blockiert ist → Drucken nutzen.
         </div>
       </div>
 
@@ -1130,8 +1118,8 @@ CH-8050`;
     const sellerBlock = [ v("sellerName"), v("sellerAddressBlock"), v("sellerContact"), v("sellerExtra") ].filter(Boolean).join("\n");
     setText("p_seller", sellerBlock);
 
-    const buyerBlock = [ v("buyerName"), v("buyerAddressBlock") ].filter(Boolean).join("\n");
-    setText("p_buyer", buyerBlock);
+    // ✅ nur ein Feld: buyerAddressBlock (inkl. Name+Adresse)
+    setText("p_buyer", v("buyerAddressBlock") || "—");
 
     setText("p_reference", v("reference") || "—");
 
@@ -1160,7 +1148,7 @@ CH-8050`;
   }
 
   // -----------------------------
-  // Export PDF
+  // Print & PDF Export
   // -----------------------------
   document.getElementById("printBtn").addEventListener("click", () => { recalc(); window.print(); });
 
@@ -1226,10 +1214,10 @@ CH-8050`;
   });
 
   // =============================================================
-  // PARSER FIX:
-  // - Niemals SellerAddressBlock überschreiben (bleibt FIX)
-  // - Negative Beträge bei City Tax / Accommodation / Manual Accomodation:
-  //   => Debit bleibt NEGATIV (nicht Credit)
+  // PARSER:
+  // - Kunde: kompletter Block in buyerAddressBlock (inkl. Name)
+  // - Niemals Seller-Felder überschreiben
+  // - Negative Beträge bei City Tax / Accommodation / Manual Accomodation => Debit bleibt NEGATIV
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1237,7 +1225,6 @@ CH-8050`;
     const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
 
     const out = {
-      buyerName: "",
       buyerAddressBlock: "",
       reference: "",
       invoiceNo: "",
@@ -1286,8 +1273,8 @@ CH-8050`;
       pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
       pick(/\b(?:Reference|Gastname|Guest\s*name|Guest)\b\s*\n\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
 
-    // Buyer block (To...)
-    (function parseBuyer(){
+    // ✅ Buyer Block: alles in 1 Feld (inkl. Name)
+    (function parseBuyerBlock(){
       const idxTo = lines.findIndex(l => /^To$/i.test(l));
       const idxRef = lines.findIndex(l => /^Reference\b/i.test(l) || /^Gastname\b/i.test(l) || /^Guest\b/i.test(l));
       const idxTbl = lines.findIndex(l => /^Date\s+VAT\s+Description/i.test(l) || /^Date\s+Description/i.test(l));
@@ -1295,11 +1282,7 @@ CH-8050`;
       if (idxTo >= 0){
         const end = (idxRef > idxTo ? idxRef : (idxTbl > idxTo ? idxTbl : Math.min(lines.length, idxTo+14)));
         const block = lines.slice(idxTo+1, end).filter(Boolean).join("\n").trim();
-        if (block){
-          const bl = block.split("\n").map(s=>s.trim()).filter(Boolean);
-          out.buyerName = bl[0] || out.buyerName;
-          out.buyerAddressBlock = bl.slice(1).join("\n").trim() || out.buyerAddressBlock;
-        }
+        if (block) out.buyerAddressBlock = block;
       }
 
       if (!out.reference && idxRef >= 0){
@@ -1319,7 +1302,6 @@ CH-8050`;
 
     const isCreditDesc = (desc) => /(deposit|advance|prepayment|transfer|paid|payment|voucher|refund|credit)/i.test(desc || "");
 
-    // ✅ keep negative in Debit for these descriptions
     const keepNegativeInDebit = (desc) =>
       /(manual\s+accomodation|accomodation|accommodation|city\s*tax|city\s*taxe)/i.test(desc || "");
 
@@ -1343,10 +1325,10 @@ CH-8050`;
       const date = parts[0] || "";
       if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
 
-      let desc = parts[2] ?? "";
-      let qtyCell = parts[3] ?? "";
-      let debitCell = parts[4] ?? "";
-      let creditCell = parts[5] ?? "";
+      const desc = parts[2] ?? "";
+      const qtyCell = parts[3] ?? "";
+      const debitCell = parts[4] ?? "";
+      const creditCell = parts[5] ?? "";
 
       const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
 
@@ -1355,11 +1337,8 @@ CH-8050`;
 
       const creditLike = isCreditDesc(desc);
 
-      // if debit negative and no explicit credit
       if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
-        if (keepNegativeInDebit(desc)){
-          // keep negative in debit
-        } else {
+        if (!keepNegativeInDebit(desc)){
           creditVal = Math.abs(debitVal);
           debitVal = "";
         }
@@ -1370,7 +1349,7 @@ CH-8050`;
         desc,
         qty: qty === "" ? "" : qty,
         unit: "",
-        debit: creditLike ? "" : (debitVal === "" ? "" : debitVal),     // can be negative
+        debit: creditLike ? "" : (debitVal === "" ? "" : debitVal),
         credit: creditLike
           ? (creditVal === "" ? (debitVal === "" ? "" : Math.abs(debitVal)) : Math.abs(creditVal))
           : (creditVal === "" ? "" : Math.abs(creditVal)),
@@ -1389,7 +1368,7 @@ CH-8050`;
         const date = m[1];
         const desc = (m[2] || "").trim();
         const qty = toNumber(m[3]);
-        const amount = parseMoneyCell(m[4]); // can be negative
+        const amount = parseMoneyCell(m[4]);
 
         const creditLike = isCreditDesc(desc);
 
@@ -1399,7 +1378,7 @@ CH-8050`;
             desc,
             qty,
             unit: "",
-            debit: amount,   // keep negative
+            debit: amount,
             credit: "",
             vatRate: defaultRate,
             vatEnabled: true
@@ -1425,7 +1404,7 @@ CH-8050`;
     const hasAnything =
       !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
       !!out.roomReservation || (out.items && out.items.length > 0) ||
-      !!out.buyerName || !!out.reference;
+      !!out.buyerAddressBlock || !!out.reference;
 
     return hasAnything ? out : null;
   }
@@ -1436,7 +1415,6 @@ CH-8050`;
   function applyParsed(d){
     if (!d) return;
 
-    if (d.buyerName) setV("buyerName", d.buyerName);
     if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
     if (d.reference) setV("reference", d.reference);
 
@@ -1537,7 +1515,6 @@ CH-8050`;
     renderItems();
     recalc();
 
-    // fixed footer
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   })();
