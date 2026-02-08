@@ -109,6 +109,7 @@
       outline:none;
       background:#fff;
       font: inherit;
+      color: var(--ink);
     }
     .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
     .toggle{
@@ -330,7 +331,7 @@
 
 <body>
 <header>
-  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (verbessert) • Druck/PDF Export</h1>
+  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import • Druck/PDF Export</h1>
 
   <div class="toolbar">
     <label class="btn primary" for="pdfFile">PDF importieren</label>
@@ -349,13 +350,13 @@
 
 <main>
 
-  <!-- =========================================================
-       EDITOR (wird beim Drucken ausgeblendet)
-       ========================================================= -->
+  <!-- ==========================
+       EDITOR (noPrint)
+       ========================== -->
   <section class="card noPrint" id="editorCard">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">Verkäuferadresse ist FIX. Credit bleibt Credit, aber MwSt? ist beim Import für Credit automatisch „Nein“.</span>
+      <span class="hint">Import: Parser liest Positionen aus `|`-Zeilen ODER per Fallback aus “normalen” Tabellenzeilen.</span>
     </div>
 
     <div class="bd">
@@ -435,7 +436,7 @@ Switzerland</textarea>
         <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
         <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
         <span class="hint" id="importHint">
-          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen (PDF öffnen → Text markieren → kopieren → einfügen).
+          Tipp: Nach Import unten im Debug-Feld prüfen, ob Tabellenzeilen als `|` kommen. Wenn nicht, greift jetzt der Fallback.
         </span>
       </div>
 
@@ -444,7 +445,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Positionen</strong>
-          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert.</span>
+          <span class="hint">MwSt? wird bei Credit/Payments automatisch deaktiviert.</span>
         </div>
         <div class="bd" style="padding:0;">
           <div style="max-height:340px; overflow:auto;">
@@ -524,9 +525,9 @@ Switzerland</textarea>
     </div>
   </section>
 
-  <!-- =========================================================
-       DRUCKANSICHT / EXPORT (wird IMMER als “echte” Tabelle gerendert)
-       ========================================================= -->
+  <!-- ==========================
+       DRUCKANSICHT / EXPORT
+       ========================== -->
   <section class="card" style="border-radius:14px;">
     <div class="hd noPrint">
       <strong>Vorschau (Druck/PDF)</strong>
@@ -636,7 +637,7 @@ Switzerland</textarea>
 
       <div class="noPrint" style="margin-top:10px;">
         <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“.
         </div>
       </div>
     </div>
@@ -794,7 +795,6 @@ CH-8050`;
     );
   }
 
-  // ✅ Credit-Zeilen: MwSt standardmäßig AUS
   function shouldDisableVatByRule(item){
     const credit = (item.credit === "" ? 0 : toNumber(item.credit));
     if (credit > 0) return true;
@@ -828,6 +828,7 @@ CH-8050`;
     return true;
   }
 
+  // ======= PDF Text Extractor (wie bei dir, aber unverändert) =======
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
 
@@ -872,6 +873,7 @@ CH-8050`;
     }
 
     if (headerY === null){
+      // Kein Tabellenkopf erkannt => Plain Text (ohne |)
       const out = [];
       for (const yKey of yKeys){
         const line = rowText(yKey);
@@ -973,6 +975,7 @@ CH-8050`;
       const debit  = joinParts(buckets.debit);
       const credit = joinParts(buckets.credit);
 
+      // Output: DATE | VAT | DESC | QTY | DEBIT | CREDIT
       outLines.push([date, vat, desc, qty, debit, credit].join(" | ").trim());
     }
 
@@ -1256,7 +1259,7 @@ CH-8050`;
   });
 
   // =============================================================
-  // PARSER
+  // PARSER (NEU: robust, auch ohne |)
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1316,11 +1319,11 @@ CH-8050`;
     const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
 
-    function parseMoneyCell(s){
-      const raw = String(s || "").trim();
-      if (!raw) return "";
-      const isParens = /^\(.*\)$/.test(raw);
-      const cleaned = raw.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
+    function parseMoneyCell(raw){
+      const s = String(raw || "").trim();
+      if (!s) return "";
+      const isParens = /^\(.*\)$/.test(s);
+      const cleaned = s.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
       let n = toNumber(cleaned);
       if (isParens) n = -Math.abs(n);
       return n;
@@ -1340,69 +1343,46 @@ CH-8050`;
         const cleaned = cleanupBuyerBlock(raw);
         if (cleaned) { out.buyerAddressBlock = cleaned; return; }
       }
-
-      const idxTax = lines.findIndex(l => /\b(TVA|VAT)\b\s*[:]/i.test(l));
-      if (idxTax >= 0){
-        const start = Math.max(0, idxTax - 2);
-        const end = Math.min(lines.length, idxTax + 4);
-        const raw = lines.slice(start, end).join("\n").trim();
-        const cleaned = cleanupBuyerBlock(raw);
-        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
-      }
-
-      const idxSL = lines.findIndex(l => /\bS\.L\.\b/i.test(l) || /TOUR\s+OPERATOR/i.test(l));
-      if (idxSL >= 0){
-        let end = idxSL + 1;
-        while (end < lines.length){
-          const l = lines[end];
-          if (/^INVOICE$/i.test(l)) break;
-          if (/^Invoice\s*No\.?/i.test(l)) break;
-          if (/^Date\b/i.test(l)) break;
-          if (/^\d{2}[./]\d{2}[./]\d{2,4}\b/.test(l)) break;
-          end++;
-          if (end - idxSL > 8) break;
-        }
-        const raw = lines.slice(idxSL, end).join("\n").trim();
-        const cleaned = cleanupBuyerBlock(raw);
-        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
-      }
     })();
 
+    // ---------- NEU: Items aus | ODER Plain Lines ----------
     const items = [];
-    for (const line of lines){
-      if (!line.includes("|")) continue;
-      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
 
-      const date = parts[0] || "";
-      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
+    // Helper: erkennt Geld-Token
+    const isMoneyToken = (tok) => {
+      const s = String(tok || "").trim();
+      if (!s) return false;
+      // Entferne Währung/Zeichen
+      const cleaned = s.replace(/CHF|EUR|USD|GBP/gi,"").trim();
+      // Muss mindestens eine Ziffer haben und überwiegend aus Ziffern/.,'()- bestehen
+      if (!/[0-9]/.test(cleaned)) return false;
+      return /^[\d\s'’.,()\-]+$/.test(cleaned.replace(/\s+/g,""));
+    };
 
-      const desc = parts[2] ?? "";
-      const qtyCell = parts[3] ?? "";
-      const debitCell = parts[4] ?? "";
-      const creditCell = parts[5] ?? "";
+    const extractVatFromText = (str) => {
+      const m = String(str||"").match(/(\d+(?:[.,]\d+)?)\s*%/);
+      if (!m) return null;
+      return toNumber(m[1]);
+    };
 
-      const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
-
-      let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
-      let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
-
-      if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
-        if (!keepNegativeInDebit(desc)){
-          creditVal = Math.abs(debitVal);
-          debitVal = "";
-        }
-      }
-
+    function pushItem(date, desc, qty, debitVal, creditVal, vatRate){
       const item = {
         date: normDate(date),
-        desc,
-        qty: qty === "" ? "" : qty,
+        desc: desc || "",
+        qty: (qty === "" ? "" : qty),
         unit: "",
         debit: (debitVal === "" ? "" : debitVal),
         credit: (creditVal === "" ? "" : Math.abs(creditVal)),
-        vatRate: defaultRate,
+        vatRate: (vatRate ?? defaultRate),
         vatEnabled: true
       };
+
+      if (item.debit !== "" && item.debit < 0 && (item.credit === "" || item.credit === 0)){
+        if (!keepNegativeInDebit(item.desc)){
+          item.credit = Math.abs(item.debit);
+          item.debit = "";
+        }
+      }
 
       if (shouldDisableVatByRule(item)){
         item.vatEnabled = false;
@@ -1410,6 +1390,75 @@ CH-8050`;
       }
 
       items.push(item);
+    }
+
+    // 1) Primär: | Format
+    for (const line of lines){
+      if (!line.includes("|")) continue;
+      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
+
+      const date = parts[0] || "";
+      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
+
+      const vatText = parts[1] ?? "";
+      const desc = parts[2] ?? "";
+      const qtyCell = parts[3] ?? "";
+      const debitCell = parts[4] ?? "";
+      const creditCell = parts[5] ?? "";
+
+      const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
+      const vatRate = extractVatFromText(vatText) ?? defaultRate;
+
+      let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
+      let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
+
+      pushItem(date, desc, qty, debitVal, creditVal, vatRate);
+    }
+
+    // 2) Fallback: Plain Lines ohne |
+    if (items.length === 0){
+      for (const line of lines){
+        const mDate = line.match(/^(\d{2}[./]\d{2}[./](?:\d{2}|\d{4}))\s+(.*)$/);
+        if (!mDate) continue;
+
+        const date = mDate[1];
+        let rest = mDate[2].trim();
+        if (!rest) continue;
+
+        // Tokenize
+        let toks = rest.split(/\s+/).filter(Boolean);
+
+        // Von hinten: amounts sammeln (1 oder 2)
+        let money = [];
+        while (toks.length && money.length < 2 && isMoneyToken(toks[toks.length-1])){
+          money.unshift(toks.pop());
+        }
+        if (money.length === 0) continue; // keine Beträge => keine Position
+
+        // qty (optional): letztes int-Token
+        let qty = "";
+        if (toks.length && /^\d{1,6}$/.test(toks[toks.length-1])){
+          qty = toNumber(toks.pop());
+        }
+
+        // VAT% evtl. irgendwo
+        const vatRate = extractVatFromText(rest) ?? defaultRate;
+
+        const desc = toks.join(" ").trim();
+
+        // Mapping: wenn 2 money tokens => debit, credit; wenn 1 => debit
+        let debitVal = "";
+        let creditVal = "";
+        if (money.length === 1){
+          debitVal = parseMoneyCell(money[0]);
+        } else {
+          // Heuristik: oft stehen zwei Spalten Debit Credit, daher übernehmen wir
+          debitVal = parseMoneyCell(money[0]);
+          creditVal = parseMoneyCell(money[1]);
+        }
+
+        pushItem(date, desc, qty, debitVal, creditVal, vatRate);
+      }
     }
 
     out.items = items;
@@ -1481,7 +1530,11 @@ CH-8050`;
       const parsed = parseInvoiceFromText(fullText);
       if (parsed){
         applyParsed(parsed);
-        setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
+        const count = parsed.items?.length || 0;
+        setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓ • <b>Positionen:</b> ${count}`, count ? "ok" : "warn");
+        if (!count){
+          alert("PDF importiert, aber keine Positionen erkannt.\nBitte im Debug-Feld prüfen (Zeilenformat). Der Fallback sollte aber meistens greifen.");
+        }
       } else {
         setPill("importPill", `<b>Import:</b> nichts erkannt`, "warn");
         alert("PDF importiert, aber Daten nicht erkannt. Bitte im Debug-Feld prüfen.");
@@ -1503,14 +1556,15 @@ CH-8050`;
     const parsed = parseInvoiceFromText(normalizeText(txt));
     if (parsed){
       applyParsed(parsed);
-      setPill("importPill", "<b>Import:</b> Text-Fallback ✓", "ok");
+      const count = parsed.items?.length || 0;
+      setPill("importPill", `<b>Import:</b> Text-Fallback ✓ • <b>Positionen:</b> ${count}`, count ? "ok" : "warn");
     } else {
       setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
       alert("Text eingefügt, aber Daten nicht erkannt. Prüfe bitte den eingefügten Text im Debug-Feld.");
     }
   });
 
-  // ✅ WICHTIG: Wenn du oben Felder änderst, soll die Druckansicht sofort nachziehen
+  // Druckansicht immer aktuell halten
   [
     "buyerAddressBlock","reference","invoiceNo","invoiceDate","currency",
     "arrival","departure","roomReservation"
