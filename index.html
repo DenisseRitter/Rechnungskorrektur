@@ -61,6 +61,7 @@
       border-radius:14px;
       box-shadow: 0 1px 0 rgba(0,0,0,.03);
       overflow:hidden;
+      margin-bottom:14px;
     }
     .card .hd{
       padding:12px 14px;
@@ -313,11 +314,13 @@
 
     details summary{ cursor:pointer; font-weight:800; }
 
+    /* -----------------------------
+       PRINT: Nur invoicePaper drucken
+       ----------------------------- */
     @media print{
       body{ background:#fff; }
       header, .noPrint{ display:none !important; }
       main{ display:block; padding:0; margin:0; max-width:none; }
-      .card{ border:none; box-shadow:none; }
       .invoicePaper{ border:none; border-radius:0; padding:0; }
       @page{ size:A4; margin:12mm; }
       .logoBox{ box-shadow:none; }
@@ -345,7 +348,11 @@
 </header>
 
 <main>
-  <section class="card">
+
+  <!-- =========================================================
+       EDITOR (wird beim Drucken ausgeblendet)
+       ========================================================= -->
+  <section class="card noPrint" id="editorCard">
     <div class="hd">
       <strong>Editor</strong>
       <span class="hint">Verkäuferadresse ist FIX. Credit bleibt Credit, aber MwSt? ist beim Import für Credit automatisch „Nein“.</span>
@@ -437,7 +444,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Positionen</strong>
-          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert (gelb wie im Screenshot).</span>
+          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert.</span>
         </div>
         <div class="bd" style="padding:0;">
           <div style="max-height:340px; overflow:auto;">
@@ -504,8 +511,28 @@ Switzerland</textarea>
         </div>
       </div>
 
-      <div style="height:18px;"></div>
+      <details class="card" style="border-radius:12px;">
+        <summary class="hd">
+          <strong>Import-Text (Debug) anzeigen</strong>
+          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
+        </summary>
+        <div class="bd">
+          <label>Ausgelesener / eingefügter Text</label>
+          <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
+        </div>
+      </details>
+    </div>
+  </section>
 
+  <!-- =========================================================
+       DRUCKANSICHT / EXPORT (wird IMMER als “echte” Tabelle gerendert)
+       ========================================================= -->
+  <section class="card" style="border-radius:14px;">
+    <div class="hd noPrint">
+      <strong>Vorschau (Druck/PDF)</strong>
+      <span class="hint">Diese Ansicht wird gedruckt/exportiert (ohne Input-Felder).</span>
+    </div>
+    <div class="bd" style="padding:14px;">
       <div class="invoicePaper" id="invoicePaper">
         <div class="invoiceHeader">
           <div>
@@ -612,22 +639,9 @@ Switzerland</textarea>
           Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
         </div>
       </div>
-
-      <div style="height:14px;"></div>
-
-      <details class="card" style="border-radius:12px;">
-        <summary class="hd">
-          <strong>Import-Text (Debug) anzeigen</strong>
-          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
-        </summary>
-        <div class="bd">
-          <label>Ausgelesener / eingefügter Text</label>
-          <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
-        </div>
-      </details>
-
     </div>
   </section>
+
 </main>
 
 <script>
@@ -868,7 +882,6 @@ CH-8050`;
 
     const headerItems = rows.get(headerY).slice().sort((a,b)=>a.x-b.x);
 
-    // ✅ FIX: Nimm die X-Position vom Wort "Debit"/"Credit" (nicht das "CHF" rechts davon!)
     function findMinXContains(word){
       const w = String(word).toLowerCase();
       const hits = headerItems
@@ -1051,8 +1064,6 @@ CH-8050`;
     state.items.push({ date:"", desc:"", qty:"", unit:"", debit:"", credit:"", vatRate: 3.8, vatEnabled: true });
     renderItems();
   });
-
-  function round2(n){ return Math.round(n*100)/100; }
 
   function recalc(){
     state.items = state.items.map(it => {
@@ -1245,7 +1256,7 @@ CH-8050`;
   });
 
   // =============================================================
-  // PARSER (dein bestehender Parser – unverändert)
+  // PARSER
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1358,7 +1369,6 @@ CH-8050`;
     })();
 
     const items = [];
-
     for (const line of lines){
       if (!line.includes("|")) continue;
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
@@ -1498,6 +1508,17 @@ CH-8050`;
       setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
       alert("Text eingefügt, aber Daten nicht erkannt. Prüfe bitte den eingefügten Text im Debug-Feld.");
     }
+  });
+
+  // ✅ WICHTIG: Wenn du oben Felder änderst, soll die Druckansicht sofort nachziehen
+  [
+    "buyerAddressBlock","reference","invoiceNo","invoiceDate","currency",
+    "arrival","departure","roomReservation"
+  ].forEach(id=>{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", () => recalc());
+    el.addEventListener("change", () => recalc());
   });
 
   (function init(){
