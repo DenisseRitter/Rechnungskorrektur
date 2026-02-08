@@ -1,82 +1,1517 @@
-// A) Pipe lines
-for (const line of lines){
-  if (!line.includes("|")) continue;
-  const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export</title>
 
-  const dateRaw = parts[0] || "";
-  const isDateLine = /^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(dateRaw);
-
-  const desc = parts[2] ?? "";
-  const qtyCell = parts[3] ?? "";
-  const debitCell = parts[4] ?? "";
-  const creditCell = parts[5] ?? "";
-
-  // ✅ Fortsetzungszeile: kein Datum, aber Description ist "19 X 94.00" oder "-1 X 97.50"
-  const descClean = String(desc || "").replace(/\s+/g," ").trim();
-  const contMatch = (!isDateLine && /^-?\d+\s*[xX]\s*-?\d+(?:[.,]\d+)?$/.test(descClean))
-    ? descClean.match(/^(-?\d+)\s*[xX]\s*(-?\d+(?:[.,]\d+)?)$/)
-    : null;
-
-  // --- 1) Fortsetzungszeile behandeln: an vorherige Position anhängen
-  if (contMatch){
-    const prev = items[items.length - 1];
-    if (prev){
-      const q = toNumber(contMatch[1]);        // kann -1 sein
-      const u = toNumber(contMatch[2]);
-
-      // a) an Beschreibung anhängen (für Export/Print sichtbar)
-      prev.desc = (prev.desc ? prev.desc + "\n" : "") + `${contMatch[1]} X ${contMatch[2]}`;
-
-      // b) qty/unit füllen, wenn noch leer (oder 0/blank)
-      if (prev.qty === "" || prev.qty === 0 || prev.qty === null || prev.qty === undefined){
-        prev.qty = q;
-      }
-      if (prev.unit === "" || prev.unit === 0 || prev.unit === null || prev.unit === undefined){
-        prev.unit = u;
-      }
-      // nichts neues pushen
-      continue;
+  <style>
+    :root{
+      --ink:#111;
+      --muted:#666;
+      --line:#d9d9d9;
+      --bg:#fafafa;
+      --card:#fff;
+      --accent:#1d4ed8;
+      --ok:#0f766e;
+      --warn:#b45309;
     }
-    // falls keine vorherige Zeile vorhanden -> ignorieren
-    continue;
-  }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--ink); background:var(--bg); }
 
-  // --- 2) Normale Zeile: Datum ist Pflicht
-  if (!isDateLine) continue;
-
-  const date = normDate(dateRaw);
-
-  const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
-
-  let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
-  let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
-
-  // Falls Debit negativ ist und es keine Credit-Spalte gab:
-  // - bei (Accommodation/Manual/CityTax) bleibt negativ im Debit
-  // - sonst wird es zu Credit (positiv)
-  if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
-    if (!keepNegativeInDebit(desc)){
-      creditVal = Math.abs(debitVal);
-      debitVal = "";
+    header{
+      background:var(--card);
+      border-bottom:1px solid var(--line);
+      padding:14px 18px;
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
     }
-  }
+    header h1{ font-size:14px; margin:0; font-weight:800; letter-spacing:.2px; }
+    .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-left:auto; }
+    .btn{
+      border:1px solid var(--line);
+      background:var(--card);
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:700;
+      white-space:nowrap;
+      user-select:none;
+    }
+    .btn.primary{ background:var(--accent); color:#fff; border-color:transparent; }
+    .btn.success{ background:var(--ok); color:#fff; border-color:transparent; }
+    .btn:active{ transform: translateY(1px); }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
 
-  const item = {
-    date,
-    desc,
-    qty: qty === "" ? "" : qty,
-    unit: "",
-    debit: (debitVal === "" ? "" : debitVal),
-    credit: (creditVal === "" ? "" : Math.abs(creditVal)),
-    vatRate: defaultRate,
-    vatEnabled: true
+    input[type="file"]{
+      position:absolute;
+      left:-9999px;
+      width:1px; height:1px;
+      opacity:0;
+    }
+
+    main{
+      padding:14px;
+      max-width: 1100px;
+      margin:0 auto;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:14px;
+      box-shadow: 0 1px 0 rgba(0,0,0,.03);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .card .hd strong{ font-size:13px; }
+    .card .bd{ padding:14px; }
+
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    @media (max-width: 700px){ .grid2,.grid3{ grid-template-columns:1fr; } }
+
+    label{ display:block; font-size:11px; color:var(--muted); margin-bottom:6px; }
+    .field{
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:9px 10px;
+      width:100%;
+      background:#fff;
+      outline:none;
+      font: inherit;
+    }
+    textarea.field{ min-height: 86px; resize: vertical; }
+    .field:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
+
+    table{ width:100%; border-collapse:collapse; font-size:12px; }
+    thead th{
+      text-align:left; font-size:11px; color:var(--muted);
+      padding:8px 8px; border-bottom:1px solid var(--line);
+      background:#fff; position:sticky; top:0; z-index:1;
+    }
+    tbody td{ padding:6px 6px; border-bottom:1px solid #eee; vertical-align:top; }
+    tbody tr:hover{ background:#fcfcff; }
+    .num{ text-align:right; }
+    .right{ text-align:right; }
+    .muted{ color:var(--muted); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .rowinput{
+      width:100%;
+      border:1px solid #eee;
+      border-radius:8px;
+      padding:6px 8px;
+      outline:none;
+      background:#fff;
+      font: inherit;
+    }
+    .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
+    .toggle{
+      display:flex; align-items:center; justify-content:center;
+      gap:6px;
+    }
+    .toggle input{ transform: scale(1.05); }
+
+    .hint{ font-size:11px; color:var(--muted); }
+
+    .totals{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .totals .box{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px;
+      background:#fff;
+    }
+    .totals .box .k{ font-size:11px; color:var(--muted); }
+    .totals .box .v{ font-size:16px; font-weight:900; margin-top:4px; }
+
+    .statusBar{
+      border:1px solid #f0f0f0;
+      border-radius:12px;
+      padding:10px;
+      background:#fff;
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px 14px;
+      align-items:center;
+      margin-top:12px;
+    }
+    .statusPill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border:1px solid #eee;
+      border-radius:999px;
+      font-size:12px;
+      background:#fff;
+      color:var(--muted);
+    }
+    .statusPill.ok{ color:var(--ok); border-color:#d1fae5; }
+    .statusPill.warn{ color:var(--warn); border-color:#ffedd5; }
+    .statusPill b{ color:inherit; }
+
+    /* -----------------------------
+       Printable invoice
+       ----------------------------- */
+    .invoicePaper{
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+    }
+
+    .invoiceHeader{
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:16px;
+      align-items:start;
+      border-bottom:1px solid #eee;
+      padding-bottom:12px;
+      margin-bottom:12px;
+    }
+    @media (max-width: 900px){
+      .invoiceHeader{ grid-template-columns: 1fr; }
+    }
+
+    .brandRow{
+      display:grid;
+      grid-template-columns: 340px 1fr;
+      gap:14px;
+      align-items:start;
+    }
+    @media (max-width: 700px){
+      .brandRow{ grid-template-columns: 1fr; }
+    }
+
+    .logoBox{
+      width:340px;
+      height:160px;
+      border:1px solid #e6e6e6;
+      border-radius:16px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      background:#fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+      padding:12px;
+    }
+    .logoBox img{
+      max-width:100%;
+      max-height:100%;
+      width:auto;
+      height:auto;
+      object-fit:contain;
+      display:block;
+    }
+
+    .sellerHead{
+      border:1px solid #f0f0f0;
+      border-radius:12px;
+      padding:10px;
+      background:#fff;
+      white-space:pre-wrap;
+      font-weight:700;
+    }
+    .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
+
+    .meta{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:8px;
+    }
+    .meta .kv{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      border:1px solid #f0f0f0;
+      border-radius:10px;
+      padding:8px 10px;
+      background:#fff;
+    }
+    .meta .kv b{ font-weight:800; }
+    .meta .kv span{ color:var(--muted); }
+
+    .blocks{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      margin-bottom:10px;
+    }
+    @media (max-width: 700px){
+      .blocks{ grid-template-columns: 1fr; }
+    }
+
+    .block{
+      border:1px solid #eee;
+      border-radius:12px;
+      padding:10px;
+      background:#fff;
+      min-height:90px;
+    }
+    .block .t{ font-size:11px; color:var(--muted); margin-bottom:6px; }
+    .block .v{ font-weight:700; white-space:pre-wrap; }
+
+    .paperTable th, .paperTable td{ padding:6px 6px; border-bottom:1px solid #eee; }
+    .paperTable thead th{ position:static; top:auto; }
+
+    .paperFooter{
+      margin-top:12px;
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:12px;
+      align-items:start;
+    }
+    @media (max-width: 900px){
+      .paperFooter{ grid-template-columns: 1fr; }
+    }
+
+    .paperTotals{
+      border:1px solid #eee;
+      border-radius:12px;
+      padding:10px;
+    }
+    .paperTotals .line{
+      display:flex; justify-content:space-between; gap:10px; padding:4px 0;
+    }
+    .paperTotals .line b{ font-weight:900; }
+
+    .paperVat{
+      border:1px solid #eee;
+      border-radius:12px;
+      padding:10px;
+    }
+
+    .paperLegal{
+      margin-top:12px;
+      border-top:1px solid #eee;
+      padding-top:10px;
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+    .paperLegalGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+      align-items:start;
+    }
+    .paperLegalCol{ white-space:pre-wrap; }
+    .paperLegalCol.right{ text-align:right; white-space:pre-wrap; }
+    @media (max-width: 650px){
+      .paperLegalGrid{ grid-template-columns: 1fr; }
+      .paperLegalCol.right{ text-align:left; }
+    }
+
+    details summary{ cursor:pointer; font-weight:800; }
+
+    @media print{
+      body{ background:#fff; }
+      header, .noPrint{ display:none !important; }
+      main{ display:block; padding:0; margin:0; max-width:none; }
+      .card{ border:none; box-shadow:none; }
+      .invoicePaper{ border:none; border-radius:0; padding:0; }
+      @page{ size:A4; margin:12mm; }
+      .logoBox{ box-shadow:none; }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (verbessert) • Druck/PDF Export</h1>
+
+  <div class="toolbar">
+    <label class="btn primary" for="pdfFile">PDF importieren</label>
+    <input id="pdfFile" type="file" accept="application/pdf" />
+
+    <button class="btn" id="manualImportBtn" type="button" title="Fallback, wenn PDF.js blockiert ist">
+      Import per Text (Fallback)
+    </button>
+
+    <button class="btn" id="addRowBtn" type="button">+ Position</button>
+
+    <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
+    <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="hd">
+      <strong>Editor</strong>
+      <span class="hint">Verkäuferadresse ist FIX. Credit bleibt Credit, aber MwSt? ist beim Import für Credit automatisch „Nein“.</span>
+    </div>
+
+    <div class="bd">
+      <div class="grid3">
+        <div>
+          <label>Hotel / Firma</label>
+          <input id="sellerName" class="field" value="ibis Zurich Messe Airport" readonly />
+        </div>
+        <div>
+          <label>Kontakt / Web (Kopfzeile)</label>
+          <input id="sellerContact" class="field" value="+41 44 307 47 00 | H2980@accor.com | www.all.accor.com" readonly />
+        </div>
+        <div>
+          <label>Optionale Zusatzzeile</label>
+          <input id="sellerExtra" class="field" value="" readonly />
+        </div>
+      </div>
+
+      <div style="height:10px;"></div>
+
+      <div>
+        <label>Adresse Verkäufer (FIX)</label>
+        <textarea id="sellerAddressBlock" class="field" readonly>Heidi Abel-Weg 5
+CH-8050 ZURICH
+Switzerland</textarea>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <div class="grid2">
+        <div>
+          <label>Adresse Kunde (ein Feld)</label>
+          <textarea id="buyerAddressBlock" class="field" placeholder="Wird beim Import automatisch befüllt…"></textarea>
+        </div>
+        <div>
+          <label>Referenz / Gastname</label>
+          <input id="reference" class="field" value="" />
+        </div>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <div class="grid3">
+        <div>
+          <label>Invoice No.</label>
+          <input id="invoiceNo" class="field" value="" />
+        </div>
+        <div>
+          <label>Rechnungsdatum</label>
+          <input id="invoiceDate" class="field" value="" />
+        </div>
+        <div>
+          <label>Währung</label>
+          <input id="currency" class="field" value="CHF" />
+        </div>
+      </div>
+
+      <div style="height:10px;"></div>
+
+      <div class="grid3">
+        <div>
+          <label>Anreise</label>
+          <input id="arrival" class="field" value="" />
+        </div>
+        <div>
+          <label>Abreise</label>
+          <input id="departure" class="field" value="" />
+        </div>
+        <div>
+          <label>Zimmer / Reservation</label>
+          <input id="roomReservation" class="field" value="" />
+        </div>
+      </div>
+
+      <div class="statusBar">
+        <span class="statusPill" id="importPill"><b>Import:</b> —</span>
+        <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
+        <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
+        <span class="hint" id="importHint">
+          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen (PDF öffnen → Text markieren → kopieren → einfügen).
+        </span>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <div class="card" style="border-radius:12px;">
+        <div class="hd">
+          <strong>Positionen</strong>
+          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert (gelb wie im Screenshot).</span>
+        </div>
+        <div class="bd" style="padding:0;">
+          <div style="max-height:340px; overflow:auto;">
+            <table id="itemsTable">
+              <thead>
+                <tr>
+                  <th style="width:110px;">Datum</th>
+                  <th>Beschreibung</th>
+                  <th class="num" style="width:70px;">QTY</th>
+                  <th class="num" style="width:90px;">Unit</th>
+                  <th class="num" style="width:110px;">Debit</th>
+                  <th class="num" style="width:110px;">Credit</th>
+                  <th class="num" style="width:92px;">MwSt %</th>
+                  <th style="width:86px;">MwSt?</th>
+                  <th style="width:70px;"></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <div class="totals">
+        <div class="box">
+          <div class="k">Total Debit</div>
+          <div class="v mono" id="totalDebit">0.00</div>
+        </div>
+        <div class="box">
+          <div class="k">Total Credit</div>
+          <div class="v mono" id="totalCredit">0.00</div>
+        </div>
+        <div class="box">
+          <div class="k">Saldo (Debit − Credit)</div>
+          <div class="v mono" id="balance">0.00</div>
+        </div>
+        <div class="box">
+          <div class="k">Endbetrag / Total</div>
+          <div class="v mono" id="grandTotal">0.00</div>
+        </div>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <div class="card" style="border-radius:12px;">
+        <div class="hd">
+          <strong>MwSt-Aufschlüsselung (pro Satz)</strong>
+          <span class="hint">Steuerbasis je Satz = Summe steuerbarer Zeilen (Debit − Credit).</span>
+        </div>
+        <div class="bd">
+          <table id="vatBreakdownTable">
+            <thead>
+              <tr>
+                <th>MwSt %</th>
+                <th class="num">Netto</th>
+                <th class="num">MwSt</th>
+                <th class="num">Brutto</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="height:18px;"></div>
+
+      <div class="invoicePaper" id="invoicePaper">
+        <div class="invoiceHeader">
+          <div>
+            <div class="brandRow">
+              <div class="logoBox" title="Logo (lokal im Repo)">
+                <img id="logoImg"
+                     src="Logo_ibis_RGB.png"
+                     alt="Logo ibis"
+                     crossorigin="anonymous"
+                     referrerpolicy="no-referrer"
+                     onerror="this.style.display='none';document.getElementById('logoFallback').style.display='block';" />
+                <div id="logoFallback" class="muted" style="display:none;text-align:center;padding:8px;">
+                  ibis<br><span class="hint">Logo konnte nicht geladen werden</span>
+                </div>
+              </div>
+
+              <div class="sellerHead">
+                <div id="p_sellerHeadMain"></div>
+                <div class="small" id="p_sellerHeadContact"></div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-weight:900;font-size:16px;margin-bottom:6px;">INVOICE</div>
+            <div class="meta">
+              <div class="kv"><span>Invoice No.</span><b id="p_invoiceNo">—</b></div>
+              <div class="kv"><span>Date</span><b id="p_invoiceDate">—</b></div>
+              <div class="kv"><span>Arrival</span><b id="p_arrival">—</b></div>
+              <div class="kv"><span>Departure</span><b id="p_departure">—</b></div>
+              <div class="kv"><span>Room / Reservation</span><b id="p_roomRes">—</b></div>
+              <div class="kv"><span>Currency</span><b id="p_currency">—</b></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="blocks">
+          <div class="block">
+            <div class="t">From</div>
+            <div class="v" id="p_seller"></div>
+          </div>
+          <div class="block">
+            <div class="t">To</div>
+            <div class="v" id="p_buyer"></div>
+          </div>
+        </div>
+
+        <div class="block" style="margin-bottom:12px;">
+          <div class="t">Reference</div>
+          <div class="v" id="p_reference"></div>
+        </div>
+
+        <table class="paperTable">
+          <thead>
+            <tr>
+              <th style="width:90px;">Date</th>
+              <th>Description</th>
+              <th class="num" style="width:60px;">QTY</th>
+              <th class="num" style="width:90px;">Unit</th>
+              <th class="num" style="width:100px;">Debit</th>
+              <th class="num" style="width:100px;">Credit</th>
+              <th class="num" style="width:70px;">VAT%</th>
+            </tr>
+          </thead>
+          <tbody id="p_items"></tbody>
+        </table>
+
+        <div class="paperFooter">
+          <div class="paperVat">
+            <div style="font-weight:900;margin-bottom:6px;">VAT Breakdown</div>
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">VAT%</th>
+                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">Net</th>
+                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">VAT</th>
+                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">Gross</th>
+                </tr>
+              </thead>
+              <tbody id="p_vatRows"></tbody>
+            </table>
+          </div>
+
+          <div class="paperTotals">
+            <div style="font-weight:900;margin-bottom:6px;">Totals</div>
+            <div class="line"><span>Total Debit</span><b class="mono" id="p_totalDebit">—</b></div>
+            <div class="line"><span>Total Credit</span><b class="mono" id="p_totalCredit">—</b></div>
+            <div class="line" style="border-top:1px solid #eee;margin-top:6px;padding-top:8px;">
+              <span>Balance</span><b class="mono" id="p_balance">—</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="paperLegal">
+          <div class="paperLegalGrid">
+            <div class="paperLegalCol" id="p_legalLeft"></div>
+            <div class="paperLegalCol right" id="p_legalRight"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="noPrint" style="margin-top:10px;">
+        <div class="hint">
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
+        </div>
+      </div>
+
+      <div style="height:14px;"></div>
+
+      <details class="card" style="border-radius:12px;">
+        <summary class="hd">
+          <strong>Import-Text (Debug) anzeigen</strong>
+          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
+        </summary>
+        <div class="bd">
+          <label>Ausgelesener / eingefügter Text</label>
+          <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
+        </div>
+      </details>
+
+    </div>
+  </section>
+</main>
+
+<script>
+  const FIXED_FOOTER_LEFT = `Essendi Switzerland SA (ehem. AccorInvest)
+UBS SA
+Konto-Nr: 243-442422.05R
+IBAN: CH24 0024 3243 4424 2205 R
+BIC: UBSWCHZH80A
+USt-IdNr. CHE-106.003.397 MWST`;
+
+  const FIXED_FOOTER_RIGHT = `ESSENDI SWITZERLAND SA
+Management Switzerland
+ibis Zurich Messe Airport
+Heidi Abel-Weg 5
+CH-8050`;
+
+  const LIBS = {
+    pdfjs: [
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js",
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.js",
+      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.min.js",
+    ],
+    pdfjsWorker: [
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js",
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
+      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
+    ],
+    html2canvas: [
+      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+      "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js",
+    ],
+    jspdf: [
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
+      "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js",
+    ]
   };
 
-  // ✅ MwSt-Regel bleibt gleich
-  if (shouldDisableVatByRule(item)){
-    item.vatEnabled = false;
-    item.vatRate = 0;
+  const loadedScripts = new Set();
+  function loadScriptOnce(url){
+    return new Promise((resolve, reject) => {
+      if (loadedScripts.has(url)) return resolve(true);
+      const s = document.createElement("script");
+      s.src = url;
+      s.async = true;
+      s.onload = () => { loadedScripts.add(url); resolve(true); };
+      s.onerror = () => reject(new Error("Script load failed: " + url));
+      document.head.appendChild(s);
+    });
+  }
+  async function loadAny(candidates){
+    for (const url of candidates){
+      try{ await loadScriptOnce(url); return url; }
+      catch (e){ console.warn(e); }
+    }
+    return "";
   }
 
-  items.push(item);
-}
+  const state = { items: [] };
+
+  function toNumber(val){
+    if (val === null || val === undefined) return 0;
+    if (typeof val === "number") return isFinite(val) ? val : 0;
+
+    let s = String(val).trim();
+    if (!s) return 0;
+
+    s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
+
+    const hasDot = s.includes(".");
+    const hasComma = s.includes(",");
+    if (hasDot && hasComma){
+      const lastDot = s.lastIndexOf(".");
+      const lastComma = s.lastIndexOf(",");
+      const decIsComma = lastComma > lastDot;
+      if (decIsComma) s = s.replace(/\./g,"").replace(",",".");
+      else s = s.replace(/,/g,"");
+    } else if (hasComma && !hasDot){
+      s = s.replace(",",".");
+    } else {
+      s = s.replace(/,/g,"");
+    }
+
+    const n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+  function round2(n){ return Math.round(n*100)/100; }
+
+  function fmt(n){
+    const cur = document.getElementById("currency").value || "CHF";
+    return `${round2(n).toFixed(2)} ${cur}`;
+  }
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+  function setPill(id, text, kind){
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove("ok","warn");
+    if (kind) el.classList.add(kind);
+    el.innerHTML = text;
+  }
+  function normalizeText(t){
+    return (t || "")
+      .replace(/\r/g,"")
+      .replace(/[ \t]+\n/g,"\n")
+      .replace(/\n{3,}/g,"\n\n")
+      .trim();
+  }
+  function v(id){ return document.getElementById(id).value; }
+  function setV(id, val){ document.getElementById(id).value = val; }
+  function setText(id, val){
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = val;
+  }
+
+  function isPaymentDesc(desc){
+    const d = String(desc || "").toLowerCase();
+    return (
+      d.includes("deposit") ||
+      d.includes("transfer") ||
+      d.includes("payment") ||
+      d.includes("paid") ||
+      d.includes("voucher") ||
+      d.includes("prepayment") ||
+      d.includes("advance") ||
+      d.includes("amex") || d.includes("american express") ||
+      d.includes("master") || d.includes("mastercard") ||
+      d.includes("visa") ||
+      d.includes("credit card") ||
+      d.includes("card")
+    );
+  }
+  function keepNegativeInDebit(desc){
+    const d = String(desc || "").toLowerCase();
+    return (
+      d.includes("manual accomodation") ||
+      d.includes("manual accommodation") ||
+      d.includes("accomodation") ||
+      d.includes("accommodation") ||
+      d.includes("city tax") ||
+      d.includes("city taxe")
+    );
+  }
+
+  // ✅ Credit-Zeilen: MwSt standardmäßig AUS
+  function shouldDisableVatByRule(item){
+    const credit = (item.credit === "" ? 0 : toNumber(item.credit));
+    if (credit > 0) return true;
+    if (isPaymentDesc(item.desc)) return true;
+    return false;
+  }
+
+  async function ensurePdfJsReady(){
+    if (window.pdfjsLib) return true;
+
+    setPill("workerPill", "<b>PDF.js:</b> laden…", "");
+    const url = await loadAny(LIBS.pdfjs);
+
+    if (!url || !window.pdfjsLib){
+      setPill("workerPill", "<b>PDF.js:</b> blockiert – Text-Fallback nutzen", "warn");
+      return false;
+    }
+
+    const workerUrl = await loadAny(LIBS.pdfjsWorker);
+    try{
+      if (workerUrl && window.pdfjsLib?.GlobalWorkerOptions){
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+        setPill("workerPill", "<b>PDF.js:</b> geladen (Worker)", "ok");
+      } else {
+        setPill("workerPill", "<b>PDF.js:</b> geladen (ohne Worker)", "warn");
+      }
+    } catch (e){
+      console.warn("Worker set failed:", e);
+      setPill("workerPill", "<b>PDF.js:</b> geladen (Fallback)", "warn");
+    }
+    return true;
+  }
+
+  async function extractPageTextByLines(page){
+    const content = await page.getTextContent({ disableCombineTextItems: false });
+
+    const items = [];
+    const Y_TOL = 1.6;
+
+    for (const it of content.items){
+      const str = String(it.str ?? "").replace(/\s+/g, " ").trim();
+      if (!str) continue;
+      const tx = it.transform;
+      const x = tx[4];
+      const y = tx[5];
+      const yKey = Math.round(y / Y_TOL) * Y_TOL;
+      items.push({ x, y, yKey, str });
+    }
+
+    const rows = new Map();
+    for (const it of items){
+      if (!rows.has(it.yKey)) rows.set(it.yKey, []);
+      rows.get(it.yKey).push(it);
+    }
+
+    const yKeys = Array.from(rows.keys()).sort((a,b) => b - a);
+
+    const rowText = (yKey) =>
+      rows.get(yKey).slice().sort((a,b)=>a.x-b.x).map(o=>o.str).join(" ").trim();
+
+    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9%]+/g," ").replace(/\s+/g," ").trim();
+
+    let headerY = null;
+    for (const yKey of yKeys){
+      const tt = norm(rowText(yKey));
+      const hasDate = tt.includes("date");
+      const hasDesc = tt.includes("description");
+      const hasQty  = tt.includes("qty") || tt.includes("qty.");
+      const hasDebit = tt.includes("debit");
+      const hasCredit = tt.includes("credit");
+      if (hasDate && hasDesc && hasQty && hasDebit && hasCredit){
+        headerY = yKey;
+        break;
+      }
+    }
+
+    if (headerY === null){
+      const out = [];
+      for (const yKey of yKeys){
+        const line = rowText(yKey);
+        if (line) out.push(line);
+      }
+      return out.join("\n");
+    }
+
+    const headerItems = rows.get(headerY).slice().sort((a,b)=>a.x-b.x);
+
+    // ✅ FIX: Nimm die X-Position vom Wort "Debit"/"Credit" (nicht das "CHF" rechts davon!)
+    function findMinXContains(word){
+      const w = String(word).toLowerCase();
+      const hits = headerItems
+        .filter(o => String(o.str || "").toLowerCase().includes(w))
+        .map(o => o.x);
+      if (!hits.length) return null;
+      return Math.min(...hits);
+    }
+
+    function findMinXRegex(re){
+      const hits = headerItems
+        .filter(o => re.test(String(o.str || "").trim()))
+        .map(o => o.x);
+      if (!hits.length) return null;
+      return Math.min(...hits);
+    }
+
+    const xDate   = findMinXRegex(/\bDate\b/i) ?? 0;
+    const xVAT    = findMinXRegex(/\bVAT\b/i);
+
+    const xDesc   = findMinXRegex(/\bDescription\b/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
+    const xQty    = findMinXRegex(/\bQty\.?\b/i) ?? (xDesc + 220);
+
+    const xDebit  = findMinXContains("debit") ?? (xQty + 60);
+
+    let xCredit   = findMinXContains("credit");
+    if (xCredit === null) xCredit = xDebit + 120;
+    if (xCredit <= xDebit) xCredit = xDebit + 120;
+
+    const xVatResolved = (xVAT ?? ((xDate + xDesc) / 2));
+
+    const bounds = [
+      { key:"date",   left:-Infinity,                 right:(xVatResolved + xDate)/2 },
+      { key:"vat",    left:(xVatResolved + xDate)/2,  right:(xDesc + xVatResolved)/2 },
+      { key:"desc",   left:(xDesc + xVatResolved)/2,  right:(xQty + xDesc)/2 },
+      { key:"qty",    left:(xQty + xDesc)/2,          right:(xDebit + xQty)/2 },
+      { key:"debit",  left:(xDebit + xQty)/2,         right:(xCredit + xDebit)/2 },
+      { key:"credit", left:(xCredit + xDebit)/2,      right:Infinity },
+    ];
+
+    function bucketKey(x){
+      return bounds.find(b => x >= b.left && x < b.right)?.key || "desc";
+    }
+
+    const GLUE_GAP = 10;
+    function joinParts(parts){
+      parts.sort((a,b)=>a.x-b.x);
+      let out = "";
+      let lastX = null;
+
+      const isDigit = (c) => c >= "0" && c <= "9";
+      const startsNum = (s) => isDigit((s[0]||"")) || s[0] === "." || s[0] === "," || s[0] === ")" || s[0] === "%";
+      const endsNum = (s) => {
+        const c = s[s.length-1] || "";
+        return isDigit(c) || c === "." || c === "," || c === "(";
+      };
+
+      for (const p of parts){
+        if (!out){
+          out = p.str;
+          lastX = p.x;
+          continue;
+        }
+        const gap = p.x - lastX;
+        const glueLikely = gap <= GLUE_GAP && endsNum(out) && startsNum(p.str);
+        out += glueLikely ? "" : " ";
+        out += p.str;
+        lastX = p.x;
+      }
+      return out.trim();
+    }
+
+    const outLines = [];
+    for (const yKey of yKeys){
+      if (yKey >= headerY) continue;
+
+      const row = rows.get(yKey).slice();
+      const buckets = { date:[], vat:[], desc:[], qty:[], debit:[], credit:[] };
+      for (const it of row){
+        buckets[bucketKey(it.x)].push(it);
+      }
+
+      const date = joinParts(buckets.date);
+      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
+
+      const vat    = joinParts(buckets.vat);
+      const desc   = joinParts(buckets.desc);
+      const qty    = joinParts(buckets.qty);
+      const debit  = joinParts(buckets.debit);
+      const credit = joinParts(buckets.credit);
+
+      outLines.push([date, vat, desc, qty, debit, credit].join(" | ").trim());
+    }
+
+    return outLines.join("\n");
+  }
+
+  async function ensureExportLibs(){
+    if (!window.html2canvas){
+      setPill("exportPill", "<b>Export:</b> html2canvas laden…", "");
+      await loadAny(LIBS.html2canvas);
+    }
+    if (!window.jspdf){
+      setPill("exportPill", "<b>Export:</b> jsPDF laden…", "");
+      await loadAny(LIBS.jspdf);
+    }
+    const ok = !!window.html2canvas && !!window.jspdf?.jsPDF;
+    setPill("exportPill", ok ? "<b>Export:</b> bereit" : "<b>Export:</b> blockiert (Drucken nutzen)", ok ? "ok" : "warn");
+    return ok;
+  }
+
+  const tbody = document.querySelector("#itemsTable tbody");
+
+  function renderItems(){
+    tbody.innerHTML = "";
+    state.items.forEach((it, idx) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input class="rowinput mono" value="${escapeHtml(it.date ?? "")}" data-k="date" data-i="${idx}"></td>
+        <td><input class="rowinput" value="${escapeHtml(it.desc ?? "")}" data-k="desc" data-i="${idx}"></td>
+        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.qty ?? "")}" data-k="qty" data-i="${idx}" inputmode="decimal"></td>
+        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.unit ?? "")}" data-k="unit" data-i="${idx}" inputmode="decimal"></td>
+        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.debit ?? "")}" data-k="debit" data-i="${idx}" inputmode="decimal"></td>
+        <td class="num"><input class="rowinput right mono" value="${escapeHtml(it.credit ?? "")}" data-k="credit" data-i="${idx}" inputmode="decimal"></td>
+        <td class="num">
+          <input class="rowinput right mono" value="${escapeHtml(it.vatRate ?? 0)}" data-k="vatRate" data-i="${idx}" inputmode="decimal">
+        </td>
+        <td class="toggle">
+          <label style="margin:0;display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" ${it.vatEnabled ? "checked":""} data-k="vatEnabled" data-i="${idx}">
+            <span class="hint">Ja</span>
+          </label>
+        </td>
+        <td class="right"><button class="btn" type="button" data-del="${idx}">✕</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+    recalc();
+  }
+
+  tbody.addEventListener("input", (e) => {
+    const el = e.target;
+    if (!el.dataset || el.dataset.i === undefined) return;
+    const i = parseInt(el.dataset.i, 10);
+    const k = el.dataset.k;
+    if (!state.items[i]) return;
+
+    const vv = el.value;
+    if (["qty","unit","debit","credit","vatRate"].includes(k)){
+      if (String(vv).trim() === "") state.items[i][k] = "";
+      else state.items[i][k] = toNumber(vv);
+    } else {
+      state.items[i][k] = vv;
+    }
+    recalc();
+  });
+
+  tbody.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!el.dataset || el.dataset.i === undefined) return;
+    const i = parseInt(el.dataset.i, 10);
+    const k = el.dataset.k;
+    if (!state.items[i]) return;
+
+    if (k === "vatEnabled"){
+      state.items[i].vatEnabled = !!el.checked;
+      recalc();
+    }
+  });
+
+  tbody.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-del]");
+    if (!btn) return;
+    const idx = parseInt(btn.dataset.del, 10);
+    state.items.splice(idx, 1);
+    renderItems();
+  });
+
+  document.getElementById("addRowBtn").addEventListener("click", () => {
+    state.items.push({ date:"", desc:"", qty:"", unit:"", debit:"", credit:"", vatRate: 3.8, vatEnabled: true });
+    renderItems();
+  });
+
+  function round2(n){ return Math.round(n*100)/100; }
+
+  function recalc(){
+    state.items = state.items.map(it => {
+      const qty = toNumber(it.qty);
+      const unit = toNumber(it.unit);
+      const debit = it.debit === "" ? "" : toNumber(it.debit);
+      const credit = it.credit === "" ? "" : toNumber(it.credit);
+
+      if ((debit === "" || debit === 0) && (credit === "" || credit === 0) && qty > 0 && unit > 0){
+        return { ...it, debit: Math.round(qty*unit*100)/100 };
+      }
+      return it;
+    });
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+    for (const it of state.items){
+      totalDebit += (it.debit === "" ? 0 : toNumber(it.debit));
+      totalCredit += (it.credit === "" ? 0 : toNumber(it.credit));
+    }
+    const balance = totalDebit - totalCredit;
+
+    document.getElementById("totalDebit").textContent = fmt(totalDebit);
+    document.getElementById("totalCredit").textContent = fmt(totalCredit);
+    document.getElementById("balance").textContent = fmt(balance);
+    document.getElementById("grandTotal").textContent = fmt(balance);
+
+    const groups = new Map();
+    for (const it of state.items){
+      if (!it.vatEnabled) continue;
+      const rate = toNumber(it.vatRate);
+      if (rate <= 0) continue;
+
+      const lineAmount = (it.debit === "" ? 0 : toNumber(it.debit)) - (it.credit === "" ? 0 : toNumber(it.credit));
+      if (lineAmount === 0) continue;
+
+      const prev = groups.get(rate) || { gross: 0 };
+      prev.gross += lineAmount;
+      groups.set(rate, prev);
+    }
+
+    const vatBody = document.querySelector("#vatBreakdownTable tbody");
+    vatBody.innerHTML = "";
+    const pVat = document.getElementById("p_vatRows");
+    pVat.innerHTML = "";
+
+    const rates = Array.from(groups.keys()).sort((a,b) => a-b);
+    if (rates.length === 0){
+      vatBody.innerHTML = `<tr><td class="muted" colspan="4">Keine MwSt-pflichtigen Positionen.</td></tr>`;
+      pVat.innerHTML = `<tr><td class="muted" colspan="4" style="padding:6px 4px;">Keine MwSt.</td></tr>`;
+    } else {
+      for (const rate of rates){
+        const gross = groups.get(rate).gross;
+        const r = rate / 100;
+        const net = gross / (1 + r);
+        const vat = gross - net;
+
+        vatBody.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td class="mono">${rate.toFixed(1)}%</td>
+            <td class="num mono">${fmt(net)}</td>
+            <td class="num mono">${fmt(vat)}</td>
+            <td class="num mono">${fmt(gross)}</td>
+          </tr>
+        `);
+
+        pVat.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td class="mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${rate.toFixed(1)}%</td>
+            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(net)}</td>
+            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(vat)}</td>
+            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(gross)}</td>
+          </tr>
+        `);
+      }
+    }
+
+    syncPrintable(totalDebit, totalCredit, balance);
+  }
+
+  function syncPrintable(totalDebit, totalCredit, balance){
+    setText("p_invoiceNo", v("invoiceNo") || "—");
+    setText("p_invoiceDate", v("invoiceDate") || "—");
+    setText("p_arrival", v("arrival") || "—");
+    setText("p_departure", v("departure") || "—");
+    setText("p_roomRes", v("roomReservation") || "—");
+    setText("p_currency", v("currency") || "—");
+
+    const sellerHeadMain = [ v("sellerName"), v("sellerAddressBlock") ].filter(Boolean).join("\n");
+    setText("p_sellerHeadMain", sellerHeadMain);
+
+    const sellerHeadContact = [ v("sellerContact"), v("sellerExtra") ].filter(Boolean).join(" | ");
+    setText("p_sellerHeadContact", sellerHeadContact);
+
+    const sellerBlock = [ v("sellerName"), v("sellerAddressBlock"), v("sellerContact"), v("sellerExtra") ].filter(Boolean).join("\n");
+    setText("p_seller", sellerBlock);
+
+    setText("p_buyer", (v("buyerAddressBlock") || "").trim());
+    setText("p_reference", v("reference") || "—");
+
+    const pItems = document.getElementById("p_items");
+    pItems.innerHTML = "";
+    for (const it of state.items){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${escapeHtml(it.date ?? "")}</td>
+        <td>${escapeHtml(it.desc ?? "")}</td>
+        <td class="num mono">${(it.qty === "" ? "" : toNumber(it.qty).toString())}</td>
+        <td class="num mono">${(it.unit === "" ? "" : toNumber(it.unit).toFixed(2))}</td>
+        <td class="num mono">${(it.debit === "" ? "" : fmt(toNumber(it.debit)))}</td>
+        <td class="num mono">${(it.credit === "" ? "" : fmt(toNumber(it.credit)))}</td>
+        <td class="num mono">${it.vatEnabled ? (toNumber(it.vatRate).toFixed(1) + "%") : "—"}</td>
+      `;
+      pItems.appendChild(tr);
+    }
+
+    setText("p_totalDebit", fmt(totalDebit));
+    setText("p_totalCredit", fmt(totalCredit));
+    setText("p_balance", fmt(balance));
+
+    setText("p_legalLeft", FIXED_FOOTER_LEFT);
+    setText("p_legalRight", FIXED_FOOTER_RIGHT);
+  }
+
+  document.getElementById("printBtn").addEventListener("click", () => { recalc(); window.print(); });
+
+  document.getElementById("exportPdfBtn").addEventListener("click", async () => {
+    try{
+      recalc();
+      const ok = await ensureExportLibs();
+      if (!ok){
+        alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“.");
+        return;
+      }
+
+      const paper = document.getElementById("invoicePaper");
+      let canvas;
+
+      try{
+        canvas = await html2canvas(paper, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+        canvas.toDataURL("image/png");
+      } catch (e1){
+        canvas = await html2canvas(paper, {
+          scale: 2,
+          useCORS: false,
+          backgroundColor: "#ffffff",
+          onclone: (doc) => {
+            doc.querySelectorAll("#invoicePaper img").forEach(img => img.remove());
+            const fb = doc.getElementById("logoFallback");
+            if (fb){
+              fb.style.display = "block";
+              fb.style.color = "#666";
+              fb.innerHTML = 'ibis<br><span style="font-size:11px;color:#666;">Zurich Messe Airport</span>';
+            }
+          }
+        });
+      }
+
+      const imgData = canvas.toDataURL("image/png");
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgWidth = pageWidth;
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+
+      if (imgHeight <= pageHeight){
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      } else {
+        let remaining = imgHeight;
+        let position = 0;
+        while (remaining > 0){
+          pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+          remaining -= pageHeight;
+          position -= pageHeight;
+          if (remaining > 0) pdf.addPage();
+        }
+      }
+
+      const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g,"_");
+      pdf.save(`Finale_Rechnung_${inv}.pdf`);
+      setPill("exportPill", "<b>Export:</b> PDF erstellt ✓", "ok");
+    } catch (err){
+      setPill("exportPill", "<b>Export:</b> Fehler", "warn");
+      alert("PDF Export fehlgeschlagen: " + (err?.message || err));
+    }
+  });
+
+  // =============================================================
+  // PARSER (dein bestehender Parser – unverändert)
+  // =============================================================
+  function parseInvoiceFromText(text){
+    const t = (text || "");
+    const upper = t.toUpperCase();
+    const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
+
+    const out = {
+      buyerAddressBlock: "",
+      reference: "",
+      invoiceNo: "",
+      invoiceDate: "",
+      currency: "",
+      arrival: "",
+      departure: "",
+      roomReservation: "",
+      items: []
+    };
+
+    const pick = (re) => {
+      const m = t.match(re);
+      return m ? (m[1] ?? "").trim() : "";
+    };
+
+    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
+
+    out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) || pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
+
+    out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
+    out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
+    out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
+
+    if (out.invoiceDate) out.invoiceDate = normDate(out.invoiceDate);
+    if (out.arrival) out.arrival = normDate(out.arrival);
+    if (out.departure) out.departure = normDate(out.departure);
+
+    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
+    if (!out.currency){
+      const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
+      if (m) out.currency = m[1];
+    }
+
+    const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
+    if (roomRes1) out.roomReservation = roomRes1;
+    if (!out.roomReservation){
+      const rm = pick(/\bRoom\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
+      const rs = pick(/\bReservation\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
+      if (rm || rs){
+        out.roomReservation = [rm ? `Room ${rm}` : "", rs ? `Reservation ${rs}` : ""].filter(Boolean).join(" | ");
+      }
+    }
+
+    out.reference =
+      pick(/\bGuest\s*Name\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
+      pick(/\bReference\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
+      pick(/\bGastname\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
+
+    const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
+    const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
+
+    function parseMoneyCell(s){
+      const raw = String(s || "").trim();
+      if (!raw) return "";
+      const isParens = /^\(.*\)$/.test(raw);
+      const cleaned = raw.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
+      let n = toNumber(cleaned);
+      if (isParens) n = -Math.abs(n);
+      return n;
+    }
+
+    function cleanupBuyerBlock(block){
+      const bl = String(block || "").split("\n").map(x=>x.trim()).filter(Boolean);
+      const filtered = bl.filter(l => !/^invoice\b/i.test(l));
+      return filtered.join("\n").trim();
+    }
+
+    (function parseBuyerAddress(){
+      const idxTo = lines.findIndex(l => /^To$/i.test(l));
+      if (idxTo >= 0){
+        let end = Math.min(lines.length, idxTo + 12);
+        const raw = lines.slice(idxTo+1, end).join("\n").trim();
+        const cleaned = cleanupBuyerBlock(raw);
+        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
+      }
+
+      const idxTax = lines.findIndex(l => /\b(TVA|VAT)\b\s*[:]/i.test(l));
+      if (idxTax >= 0){
+        const start = Math.max(0, idxTax - 2);
+        const end = Math.min(lines.length, idxTax + 4);
+        const raw = lines.slice(start, end).join("\n").trim();
+        const cleaned = cleanupBuyerBlock(raw);
+        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
+      }
+
+      const idxSL = lines.findIndex(l => /\bS\.L\.\b/i.test(l) || /TOUR\s+OPERATOR/i.test(l));
+      if (idxSL >= 0){
+        let end = idxSL + 1;
+        while (end < lines.length){
+          const l = lines[end];
+          if (/^INVOICE$/i.test(l)) break;
+          if (/^Invoice\s*No\.?/i.test(l)) break;
+          if (/^Date\b/i.test(l)) break;
+          if (/^\d{2}[./]\d{2}[./]\d{2,4}\b/.test(l)) break;
+          end++;
+          if (end - idxSL > 8) break;
+        }
+        const raw = lines.slice(idxSL, end).join("\n").trim();
+        const cleaned = cleanupBuyerBlock(raw);
+        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
+      }
+    })();
+
+    const items = [];
+
+    for (const line of lines){
+      if (!line.includes("|")) continue;
+      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
+
+      const date = parts[0] || "";
+      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
+
+      const desc = parts[2] ?? "";
+      const qtyCell = parts[3] ?? "";
+      const debitCell = parts[4] ?? "";
+      const creditCell = parts[5] ?? "";
+
+      const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
+
+      let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
+      let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
+
+      if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
+        if (!keepNegativeInDebit(desc)){
+          creditVal = Math.abs(debitVal);
+          debitVal = "";
+        }
+      }
+
+      const item = {
+        date: normDate(date),
+        desc,
+        qty: qty === "" ? "" : qty,
+        unit: "",
+        debit: (debitVal === "" ? "" : debitVal),
+        credit: (creditVal === "" ? "" : Math.abs(creditVal)),
+        vatRate: defaultRate,
+        vatEnabled: true
+      };
+
+      if (shouldDisableVatByRule(item)){
+        item.vatEnabled = false;
+        item.vatRate = 0;
+      }
+
+      items.push(item);
+    }
+
+    out.items = items;
+
+    const hasAnything =
+      !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
+      !!out.roomReservation || (out.items && out.items.length > 0) ||
+      !!out.buyerAddressBlock || !!out.reference;
+
+    return hasAnything ? out : null;
+  }
+
+  function applyParsed(d){
+    if (!d) return;
+
+    if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
+    if (d.reference) setV("reference", d.reference);
+
+    if (d.invoiceNo) setV("invoiceNo", d.invoiceNo);
+    if (d.invoiceDate) setV("invoiceDate", d.invoiceDate);
+    if (d.currency) setV("currency", d.currency);
+    if (d.arrival) setV("arrival", d.arrival);
+    if (d.departure) setV("departure", d.departure);
+    if (d.roomReservation) setV("roomReservation", d.roomReservation);
+
+    if (Array.isArray(d.items)) state.items = d.items;
+    renderItems();
+  }
+
+  const pdfFileInput = document.getElementById("pdfFile");
+  const extractedTextEl = document.getElementById("extractedText");
+
+  pdfFileInput.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} …`, "");
+
+    const ok = await ensurePdfJsReady();
+    if (!ok){
+      setPill("importPill", `<b>Import:</b> blockiert (Text-Fallback)`, "warn");
+      alert("PDF.js ist blockiert. Bitte nutze „Import per Text (Fallback)“.");
+      e.target.value = "";
+      return;
+    }
+
+    try{
+      const buf = await file.arrayBuffer();
+      const data = new Uint8Array(buf);
+
+      let pdf;
+      try{
+        pdf = await pdfjsLib.getDocument({ data }).promise;
+      } catch (err1){
+        pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+        setPill("workerPill", "<b>PDF.js:</b> Worker deaktiviert (Fallback)", "warn");
+      }
+
+      let fullText = "";
+      for (let p=1; p<=pdf.numPages; p++){
+        const page = await pdf.getPage(p);
+        fullText += await extractPageTextByLines(page);
+        fullText += "\n";
+      }
+
+      fullText = normalizeText(fullText);
+      extractedTextEl.value = fullText;
+
+      const parsed = parseInvoiceFromText(fullText);
+      if (parsed){
+        applyParsed(parsed);
+        setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
+      } else {
+        setPill("importPill", `<b>Import:</b> nichts erkannt`, "warn");
+        alert("PDF importiert, aber Daten nicht erkannt. Bitte im Debug-Feld prüfen.");
+      }
+    } catch(err){
+      setPill("importPill", `<b>Import:</b> Fehler`, "warn");
+      alert("PDF Import fehlgeschlagen: " + (err?.message || err));
+    } finally {
+      e.target.value = "";
+    }
+  });
+
+  document.getElementById("manualImportBtn").addEventListener("click", () => {
+    const existing = extractedTextEl.value?.trim() ? extractedTextEl.value.trim() : "";
+    const txt = prompt("Fallback-Import (Copy/Paste):\n\nPDF öffnen → Text markieren → kopieren → hier einfügen", existing);
+    if (!txt) return;
+
+    extractedTextEl.value = txt;
+    const parsed = parseInvoiceFromText(normalizeText(txt));
+    if (parsed){
+      applyParsed(parsed);
+      setPill("importPill", "<b>Import:</b> Text-Fallback ✓", "ok");
+    } else {
+      setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
+      alert("Text eingefügt, aber Daten nicht erkannt. Prüfe bitte den eingefügten Text im Debug-Feld.");
+    }
+  });
+
+  (function init(){
+    setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
+    setPill("importPill", "<b>Import:</b> bereit", "");
+    setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
+
+    state.items = [];
+    renderItems();
+    recalc();
+
+    setText("p_legalLeft", FIXED_FOOTER_LEFT);
+    setText("p_legalRight", FIXED_FOOTER_RIGHT);
+  })();
+</script>
+</body>
+</html>
