@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export</title>
+  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export (Option B)</title>
 
   <style>
     :root{
@@ -18,7 +18,6 @@
     }
     *{ box-sizing:border-box; }
     body{ margin:0; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--ink); background:var(--bg); }
-
     header{
       background:var(--card);
       border-bottom:1px solid var(--line);
@@ -41,27 +40,19 @@
     .btn.success{ background:var(--ok); color:#fff; border-color:transparent; }
     .btn:active{ transform: translateY(1px); }
     .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
-
     input[type="file"]{
       position:absolute;
       left:-9999px;
       width:1px; height:1px;
       opacity:0;
     }
-
-    main{
-      padding:14px;
-      max-width: 1100px;
-      margin:0 auto;
-    }
-
+    main{ padding:14px; max-width: 1100px; margin:0 auto; }
     .card{
       background:var(--card);
       border:1px solid var(--line);
       border-radius:14px;
       box-shadow: 0 1px 0 rgba(0,0,0,.03);
       overflow:hidden;
-      margin-bottom:14px;
     }
     .card .hd{
       padding:12px 14px;
@@ -70,11 +61,9 @@
     }
     .card .hd strong{ font-size:13px; }
     .card .bd{ padding:14px; }
-
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
     @media (max-width: 700px){ .grid2,.grid3{ grid-template-columns:1fr; } }
-
     label{ display:block; font-size:11px; color:var(--muted); margin-bottom:6px; }
     .field{
       border:1px solid var(--line);
@@ -87,7 +76,6 @@
     }
     textarea.field{ min-height: 86px; resize: vertical; }
     .field:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-
     table{ width:100%; border-collapse:collapse; font-size:12px; }
     thead th{
       text-align:left; font-size:11px; color:var(--muted);
@@ -100,7 +88,6 @@
     .right{ text-align:right; }
     .muted{ color:var(--muted); }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
     .rowinput{
       width:100%;
       border:1px solid #eee;
@@ -109,17 +96,11 @@
       outline:none;
       background:#fff;
       font: inherit;
-      color: var(--ink);
     }
     .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    .toggle{
-      display:flex; align-items:center; justify-content:center;
-      gap:6px;
-    }
+    .toggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
     .toggle input{ transform: scale(1.05); }
-
     .hint{ font-size:11px; color:var(--muted); }
-
     .totals{
       display:grid;
       grid-template-columns: 1fr 1fr;
@@ -133,7 +114,6 @@
     }
     .totals .box .k{ font-size:11px; color:var(--muted); }
     .totals .box .v{ font-size:16px; font-weight:900; margin-top:4px; }
-
     .statusBar{
       border:1px solid #f0f0f0;
       border-radius:12px;
@@ -160,16 +140,7 @@
     .statusPill.warn{ color:var(--warn); border-color:#ffedd5; }
     .statusPill b{ color:inherit; }
 
-    /* -----------------------------
-       Printable invoice
-       ----------------------------- */
-    .invoicePaper{
-      background:#fff;
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:16px;
-    }
-
+    .invoicePaper{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; }
     .invoiceHeader{
       display:grid;
       grid-template-columns: 1fr 360px;
@@ -179,92 +150,36 @@
       padding-bottom:12px;
       margin-bottom:12px;
     }
-    @media (max-width: 900px){
-      .invoiceHeader{ grid-template-columns: 1fr; }
-    }
-
-    .brandRow{
-      display:grid;
-      grid-template-columns: 340px 1fr;
-      gap:14px;
-      align-items:start;
-    }
-    @media (max-width: 700px){
-      .brandRow{ grid-template-columns: 1fr; }
-    }
-
+    @media (max-width: 900px){ .invoiceHeader{ grid-template-columns: 1fr; } }
+    .brandRow{ display:grid; grid-template-columns: 340px 1fr; gap:14px; align-items:start; }
+    @media (max-width: 700px){ .brandRow{ grid-template-columns: 1fr; } }
     .logoBox{
-      width:340px;
-      height:160px;
+      width:340px; height:160px;
       border:1px solid #e6e6e6;
       border-radius:16px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      overflow:hidden;
-      background:#fff;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden; background:#fff;
       box-shadow: 0 2px 10px rgba(0,0,0,.06);
       padding:12px;
     }
-    .logoBox img{
-      max-width:100%;
-      max-height:100%;
-      width:auto;
-      height:auto;
-      object-fit:contain;
-      display:block;
-    }
-
-    .sellerHead{
-      border:1px solid #f0f0f0;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-      white-space:pre-wrap;
-      font-weight:700;
-    }
+    .logoBox img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+    .sellerHead{ border:1px solid #f0f0f0; border-radius:12px; padding:10px; background:#fff; white-space:pre-wrap; font-weight:700; }
     .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
-
-    .meta{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:8px;
-    }
+    .meta{ display:grid; grid-template-columns: 1fr; gap:8px; }
     .meta .kv{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      border:1px solid #f0f0f0;
-      border-radius:10px;
-      padding:8px 10px;
-      background:#fff;
+      display:flex; justify-content:space-between; gap:10px;
+      border:1px solid #f0f0f0; border-radius:10px;
+      padding:8px 10px; background:#fff;
     }
     .meta .kv b{ font-weight:800; }
     .meta .kv span{ color:var(--muted); }
-
-    .blocks{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-      margin-bottom:10px;
-    }
-    @media (max-width: 700px){
-      .blocks{ grid-template-columns: 1fr; }
-    }
-
-    .block{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-      min-height:90px;
-    }
+    .blocks{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:10px; }
+    @media (max-width: 700px){ .blocks{ grid-template-columns: 1fr; } }
+    .block{ border:1px solid #eee; border-radius:12px; padding:10px; background:#fff; min-height:90px; }
     .block .t{ font-size:11px; color:var(--muted); margin-bottom:6px; }
     .block .v{ font-weight:700; white-space:pre-wrap; }
-
     .paperTable th, .paperTable td{ padding:6px 6px; border-bottom:1px solid #eee; }
     .paperTable thead th{ position:static; top:auto; }
-
     .paperFooter{
       margin-top:12px;
       display:grid;
@@ -272,56 +187,28 @@
       gap:12px;
       align-items:start;
     }
-    @media (max-width: 900px){
-      .paperFooter{ grid-template-columns: 1fr; }
-    }
-
-    .paperTotals{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-    }
-    .paperTotals .line{
-      display:flex; justify-content:space-between; gap:10px; padding:4px 0;
-    }
+    @media (max-width: 900px){ .paperFooter{ grid-template-columns: 1fr; } }
+    .paperTotals{ border:1px solid #eee; border-radius:12px; padding:10px; }
+    .paperTotals .line{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; }
     .paperTotals .line b{ font-weight:900; }
-
-    .paperVat{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-    }
-
+    .paperVat{ border:1px solid #eee; border-radius:12px; padding:10px; }
     .paperLegal{
-      margin-top:12px;
-      border-top:1px solid #eee;
-      padding-top:10px;
-      font-size:11px;
-      color:var(--muted);
-      line-height:1.35;
+      margin-top:12px; border-top:1px solid #eee; padding-top:10px;
+      font-size:11px; color:var(--muted); line-height:1.35;
     }
-    .paperLegalGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:14px;
-      align-items:start;
-    }
+    .paperLegalGrid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
     .paperLegalCol{ white-space:pre-wrap; }
     .paperLegalCol.right{ text-align:right; white-space:pre-wrap; }
     @media (max-width: 650px){
       .paperLegalGrid{ grid-template-columns: 1fr; }
       .paperLegalCol.right{ text-align:left; }
     }
-
     details summary{ cursor:pointer; font-weight:800; }
-
-    /* -----------------------------
-       PRINT: Nur invoicePaper drucken
-       ----------------------------- */
     @media print{
       body{ background:#fff; }
       header, .noPrint{ display:none !important; }
       main{ display:block; padding:0; margin:0; max-width:none; }
+      .card{ border:none; box-shadow:none; }
       .invoicePaper{ border:none; border-radius:0; padding:0; }
       @page{ size:A4; margin:12mm; }
       .logoBox{ box-shadow:none; }
@@ -331,7 +218,7 @@
 
 <body>
 <header>
-  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import • Druck/PDF Export</h1>
+  <h1>Rechnungskorrektur (Option B): Credit korrekt • Detailzeile als eigene Position</h1>
 
   <div class="toolbar">
     <label class="btn primary" for="pdfFile">PDF importieren</label>
@@ -349,14 +236,10 @@
 </header>
 
 <main>
-
-  <!-- ==========================
-       EDITOR (noPrint)
-       ========================== -->
-  <section class="card noPrint" id="editorCard">
+  <section class="card">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">Import: Parser liest Positionen aus `|`-Zeilen ODER per Fallback aus “normalen” Tabellenzeilen.</span>
+      <span class="hint">Gedruckte Details (z.B. „19 X 94.00“) werden als eigene Zeile importiert (ohne Betrag, MwSt aus).</span>
     </div>
 
     <div class="bd">
@@ -436,7 +319,7 @@ Switzerland</textarea>
         <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
         <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
         <span class="hint" id="importHint">
-          Tipp: Nach Import unten im Debug-Feld prüfen, ob Tabellenzeilen als `|` kommen. Wenn nicht, greift jetzt der Fallback.
+          Wenn PDF-Import blockiert ist: „Import per Text (Fallback)“ nutzen (PDF öffnen → Text markieren → kopieren → einfügen).
         </span>
       </div>
 
@@ -445,7 +328,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Positionen</strong>
-          <span class="hint">MwSt? wird bei Credit/Payments automatisch deaktiviert.</span>
+          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert.</span>
         </div>
         <div class="bd" style="padding:0;">
           <div style="max-height:340px; overflow:auto;">
@@ -512,28 +395,8 @@ Switzerland</textarea>
         </div>
       </div>
 
-      <details class="card" style="border-radius:12px;">
-        <summary class="hd">
-          <strong>Import-Text (Debug) anzeigen</strong>
-          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
-        </summary>
-        <div class="bd">
-          <label>Ausgelesener / eingefügter Text</label>
-          <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
-        </div>
-      </details>
-    </div>
-  </section>
+      <div style="height:18px;"></div>
 
-  <!-- ==========================
-       DRUCKANSICHT / EXPORT
-       ========================== -->
-  <section class="card" style="border-radius:14px;">
-    <div class="hd noPrint">
-      <strong>Vorschau (Druck/PDF)</strong>
-      <span class="hint">Diese Ansicht wird gedruckt/exportiert (ohne Input-Felder).</span>
-    </div>
-    <div class="bd" style="padding:14px;">
       <div class="invoicePaper" id="invoicePaper">
         <div class="invoiceHeader">
           <div>
@@ -637,12 +500,25 @@ Switzerland</textarea>
 
       <div class="noPrint" style="margin-top:10px;">
         <div class="hint">
-          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“.
+          Für PDF: entweder „Drucken / Als PDF speichern“ oder „Finale PDF exportieren“. Falls Export im Betrieb blockiert ist → Drucken nutzen.
         </div>
       </div>
+
+      <div style="height:14px;"></div>
+
+      <details class="card" style="border-radius:12px;">
+        <summary class="hd">
+          <strong>Import-Text (Debug) anzeigen</strong>
+          <span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span>
+        </summary>
+        <div class="bd">
+          <label>Ausgelesener / eingefügter Text</label>
+          <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text …"></textarea>
+        </div>
+      </details>
+
     </div>
   </section>
-
 </main>
 
 <script>
@@ -731,7 +607,6 @@ CH-8050`;
     return isFinite(n) ? n : 0;
   }
   function round2(n){ return Math.round(n*100)/100; }
-
   function fmt(n){
     const cur = document.getElementById("currency").value || "CHF";
     return `${round2(n).toFixed(2)} ${cur}`;
@@ -794,7 +669,6 @@ CH-8050`;
       d.includes("city taxe")
     );
   }
-
   function shouldDisableVatByRule(item){
     const credit = (item.credit === "" ? 0 : toNumber(item.credit));
     if (credit > 0) return true;
@@ -828,7 +702,6 @@ CH-8050`;
     return true;
   }
 
-  // ======= PDF Text Extractor (wie bei dir, aber unverändert) =======
   async function extractPageTextByLines(page){
     const content = await page.getTextContent({ disableCombineTextItems: false });
 
@@ -873,7 +746,6 @@ CH-8050`;
     }
 
     if (headerY === null){
-      // Kein Tabellenkopf erkannt => Plain Text (ohne |)
       const out = [];
       for (const yKey of yKeys){
         const line = rowText(yKey);
@@ -892,7 +764,6 @@ CH-8050`;
       if (!hits.length) return null;
       return Math.min(...hits);
     }
-
     function findMinXRegex(re){
       const hits = headerItems
         .filter(o => re.test(String(o.str || "").trim()))
@@ -903,12 +774,9 @@ CH-8050`;
 
     const xDate   = findMinXRegex(/\bDate\b/i) ?? 0;
     const xVAT    = findMinXRegex(/\bVAT\b/i);
-
     const xDesc   = findMinXRegex(/\bDescription\b/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
     const xQty    = findMinXRegex(/\bQty\.?\b/i) ?? (xDesc + 220);
-
     const xDebit  = findMinXContains("debit") ?? (xQty + 60);
-
     let xCredit   = findMinXContains("credit");
     if (xCredit === null) xCredit = xDebit + 120;
     if (xCredit <= xDebit) xCredit = xDebit + 120;
@@ -967,15 +835,22 @@ CH-8050`;
       }
 
       const date = joinParts(buckets.date);
-      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
-
       const vat    = joinParts(buckets.vat);
       const desc   = joinParts(buckets.desc);
       const qty    = joinParts(buckets.qty);
       const debit  = joinParts(buckets.debit);
       const credit = joinParts(buckets.credit);
 
-      // Output: DATE | VAT | DESC | QTY | DEBIT | CREDIT
+      const isDateLine = /^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date);
+
+      const d = (desc || "").replace(/\s+/g," ").trim();
+      const isContinuation =
+        !date &&
+        !!d &&
+        /^-?\d+\s*[xX]\s*-?\d+(?:[.,]\d+)?$/.test(d);
+
+      if (!isDateLine && !isContinuation) continue;
+
       outLines.push([date, vat, desc, qty, debit, credit].join(" | ").trim());
     }
 
@@ -1258,131 +1133,104 @@ CH-8050`;
     }
   });
 
-  // =============================================================
-  // PARSER (NEU: robust, auch ohne |)
-  // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
-    const upper = t.toUpperCase();
     const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
 
-    const out = {
-      buyerAddressBlock: "",
-      reference: "",
-      invoiceNo: "",
-      invoiceDate: "",
-      currency: "",
-      arrival: "",
-      departure: "",
-      roomReservation: "",
-      items: []
-    };
+    const out = { buyerAddressBlock:"", reference:"", invoiceNo:"", invoiceDate:"", currency:"", arrival:"", departure:"", roomReservation:"", items:[] };
 
     const pick = (re) => {
       const m = t.match(re);
       return m ? (m[1] ?? "").trim() : "";
     };
-
     const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
 
     out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) || pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
-
     out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-
     if (out.invoiceDate) out.invoiceDate = normDate(out.invoiceDate);
     if (out.arrival) out.arrival = normDate(out.arrival);
     if (out.departure) out.departure = normDate(out.departure);
 
-    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
-    if (!out.currency){
-      const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
-      if (m) out.currency = m[1];
-    }
-
-    const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
-    if (roomRes1) out.roomReservation = roomRes1;
-    if (!out.roomReservation){
-      const rm = pick(/\bRoom\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
-      const rs = pick(/\bReservation\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
-      if (rm || rs){
-        out.roomReservation = [rm ? `Room ${rm}` : "", rs ? `Reservation ${rs}` : ""].filter(Boolean).join(" | ");
-      }
-    }
-
-    out.reference =
-      pick(/\bGuest\s*Name\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
-      pick(/\bReference\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
-      pick(/\bGastname\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
+    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i) || (t.toUpperCase().match(/\b(CHF|EUR|USD|GBP)\b/)?.[1] ?? "");
 
     const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
 
-    function parseMoneyCell(raw){
-      const s = String(raw || "").trim();
-      if (!s) return "";
-      const isParens = /^\(.*\)$/.test(s);
-      const cleaned = s.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
+    function parseMoneyCell(s){
+      const raw = String(s || "").trim();
+      if (!raw) return "";
+      const isParens = /^\(.*\)$/.test(raw);
+      const cleaned = raw.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
       let n = toNumber(cleaned);
       if (isParens) n = -Math.abs(n);
       return n;
     }
 
-    function cleanupBuyerBlock(block){
-      const bl = String(block || "").split("\n").map(x=>x.trim()).filter(Boolean);
-      const filtered = bl.filter(l => !/^invoice\b/i.test(l));
-      return filtered.join("\n").trim();
-    }
-
-    (function parseBuyerAddress(){
-      const idxTo = lines.findIndex(l => /^To$/i.test(l));
-      if (idxTo >= 0){
-        let end = Math.min(lines.length, idxTo + 12);
-        const raw = lines.slice(idxTo+1, end).join("\n").trim();
-        const cleaned = cleanupBuyerBlock(raw);
-        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
-      }
-    })();
-
-    // ---------- NEU: Items aus | ODER Plain Lines ----------
     const items = [];
 
-    // Helper: erkennt Geld-Token
-    const isMoneyToken = (tok) => {
-      const s = String(tok || "").trim();
-      if (!s) return false;
-      // Entferne Währung/Zeichen
-      const cleaned = s.replace(/CHF|EUR|USD|GBP/gi,"").trim();
-      // Muss mindestens eine Ziffer haben und überwiegend aus Ziffern/.,'()- bestehen
-      if (!/[0-9]/.test(cleaned)) return false;
-      return /^[\d\s'’.,()\-]+$/.test(cleaned.replace(/\s+/g,""));
-    };
+    for (const line of lines){
+      if (!line.includes("|")) continue;
+      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
 
-    const extractVatFromText = (str) => {
-      const m = String(str||"").match(/(\d+(?:[.,]\d+)?)\s*%/);
-      if (!m) return null;
-      return toNumber(m[1]);
-    };
+      const dateRaw = parts[0] || "";
+      const isDateLine = /^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(dateRaw);
 
-    function pushItem(date, desc, qty, debitVal, creditVal, vatRate){
+      const desc = parts[2] ?? "";
+      const qtyCell = parts[3] ?? "";
+      const debitCell = parts[4] ?? "";
+      const creditCell = parts[5] ?? "";
+
+      const descClean = String(desc || "").replace(/\s+/g," ").trim();
+      const contMatch = (!isDateLine && /^-?\d+\s*[xX]\s*-?\d+(?:[.,]\d+)?$/.test(descClean))
+        ? descClean.match(/^(-?\d+)\s*[xX]\s*(-?\d+(?:[.,]\d+)?)$/)
+        : null;
+
+      // ✅ OPTION B: Fortsetzungszeile wird als eigene Position hinzugefügt
+      if (contMatch){
+        const prev = items[items.length - 1];
+        const q = toNumber(contMatch[1]);
+        const u = toNumber(contMatch[2]);
+
+        items.push({
+          date: prev?.date ?? "",                     // gleiche Datum-Zeile (optisch schöner)
+          desc: `${contMatch[1]} X ${contMatch[2]}`,  // nur Detailtext
+          qty: q,
+          unit: u,
+          debit: "",
+          credit: "",
+          vatRate: 0,
+          vatEnabled: false                           // wichtig: beeinflusst Totale nicht
+        });
+        continue;
+      }
+
+      if (!isDateLine) continue;
+
+      const date = normDate(dateRaw);
+      const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
+
+      let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
+      let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
+
+      if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
+        if (!keepNegativeInDebit(desc)){
+          creditVal = Math.abs(debitVal);
+          debitVal = "";
+        }
+      }
+
       const item = {
-        date: normDate(date),
-        desc: desc || "",
-        qty: (qty === "" ? "" : qty),
+        date,
+        desc,
+        qty: qty === "" ? "" : qty,
         unit: "",
         debit: (debitVal === "" ? "" : debitVal),
         credit: (creditVal === "" ? "" : Math.abs(creditVal)),
-        vatRate: (vatRate ?? defaultRate),
+        vatRate: defaultRate,
         vatEnabled: true
       };
-
-      if (item.debit !== "" && item.debit < 0 && (item.credit === "" || item.credit === 0)){
-        if (!keepNegativeInDebit(item.desc)){
-          item.credit = Math.abs(item.debit);
-          item.debit = "";
-        }
-      }
 
       if (shouldDisableVatByRule(item)){
         item.vatEnabled = false;
@@ -1392,98 +1240,20 @@ CH-8050`;
       items.push(item);
     }
 
-    // 1) Primär: | Format
-    for (const line of lines){
-      if (!line.includes("|")) continue;
-      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
-
-      const date = parts[0] || "";
-      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
-
-      const vatText = parts[1] ?? "";
-      const desc = parts[2] ?? "";
-      const qtyCell = parts[3] ?? "";
-      const debitCell = parts[4] ?? "";
-      const creditCell = parts[5] ?? "";
-
-      const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
-      const vatRate = extractVatFromText(vatText) ?? defaultRate;
-
-      let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
-      let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
-
-      pushItem(date, desc, qty, debitVal, creditVal, vatRate);
-    }
-
-    // 2) Fallback: Plain Lines ohne |
-    if (items.length === 0){
-      for (const line of lines){
-        const mDate = line.match(/^(\d{2}[./]\d{2}[./](?:\d{2}|\d{4}))\s+(.*)$/);
-        if (!mDate) continue;
-
-        const date = mDate[1];
-        let rest = mDate[2].trim();
-        if (!rest) continue;
-
-        // Tokenize
-        let toks = rest.split(/\s+/).filter(Boolean);
-
-        // Von hinten: amounts sammeln (1 oder 2)
-        let money = [];
-        while (toks.length && money.length < 2 && isMoneyToken(toks[toks.length-1])){
-          money.unshift(toks.pop());
-        }
-        if (money.length === 0) continue; // keine Beträge => keine Position
-
-        // qty (optional): letztes int-Token
-        let qty = "";
-        if (toks.length && /^\d{1,6}$/.test(toks[toks.length-1])){
-          qty = toNumber(toks.pop());
-        }
-
-        // VAT% evtl. irgendwo
-        const vatRate = extractVatFromText(rest) ?? defaultRate;
-
-        const desc = toks.join(" ").trim();
-
-        // Mapping: wenn 2 money tokens => debit, credit; wenn 1 => debit
-        let debitVal = "";
-        let creditVal = "";
-        if (money.length === 1){
-          debitVal = parseMoneyCell(money[0]);
-        } else {
-          // Heuristik: oft stehen zwei Spalten Debit Credit, daher übernehmen wir
-          debitVal = parseMoneyCell(money[0]);
-          creditVal = parseMoneyCell(money[1]);
-        }
-
-        pushItem(date, desc, qty, debitVal, creditVal, vatRate);
-      }
-    }
-
     out.items = items;
-
-    const hasAnything =
-      !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
-      !!out.roomReservation || (out.items && out.items.length > 0) ||
-      !!out.buyerAddressBlock || !!out.reference;
-
-    return hasAnything ? out : null;
+    return (items.length > 0 || out.invoiceNo || out.invoiceDate) ? out : null;
   }
 
   function applyParsed(d){
     if (!d) return;
-
     if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
     if (d.reference) setV("reference", d.reference);
-
     if (d.invoiceNo) setV("invoiceNo", d.invoiceNo);
     if (d.invoiceDate) setV("invoiceDate", d.invoiceDate);
     if (d.currency) setV("currency", d.currency);
     if (d.arrival) setV("arrival", d.arrival);
     if (d.departure) setV("departure", d.departure);
     if (d.roomReservation) setV("roomReservation", d.roomReservation);
-
     if (Array.isArray(d.items)) state.items = d.items;
     renderItems();
   }
@@ -1530,11 +1300,7 @@ CH-8050`;
       const parsed = parseInvoiceFromText(fullText);
       if (parsed){
         applyParsed(parsed);
-        const count = parsed.items?.length || 0;
-        setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓ • <b>Positionen:</b> ${count}`, count ? "ok" : "warn");
-        if (!count){
-          alert("PDF importiert, aber keine Positionen erkannt.\nBitte im Debug-Feld prüfen (Zeilenformat). Der Fallback sollte aber meistens greifen.");
-        }
+        setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
       } else {
         setPill("importPill", `<b>Import:</b> nichts erkannt`, "warn");
         alert("PDF importiert, aber Daten nicht erkannt. Bitte im Debug-Feld prüfen.");
@@ -1556,34 +1322,20 @@ CH-8050`;
     const parsed = parseInvoiceFromText(normalizeText(txt));
     if (parsed){
       applyParsed(parsed);
-      const count = parsed.items?.length || 0;
-      setPill("importPill", `<b>Import:</b> Text-Fallback ✓ • <b>Positionen:</b> ${count}`, count ? "ok" : "warn");
+      setPill("importPill", "<b>Import:</b> Text-Fallback ✓", "ok");
     } else {
       setPill("importPill", "<b>Import:</b> Text-Fallback – nichts erkannt", "warn");
       alert("Text eingefügt, aber Daten nicht erkannt. Prüfe bitte den eingefügten Text im Debug-Feld.");
     }
   });
 
-  // Druckansicht immer aktuell halten
-  [
-    "buyerAddressBlock","reference","invoiceNo","invoiceDate","currency",
-    "arrival","departure","roomReservation"
-  ].forEach(id=>{
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener("input", () => recalc());
-    el.addEventListener("change", () => recalc());
-  });
-
   (function init(){
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("importPill", "<b>Import:</b> bereit", "");
     setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
-
     state.items = [];
     renderItems();
     recalc();
-
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   })();
