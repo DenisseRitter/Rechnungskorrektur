@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export</title>
+  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export (Option B)</title>
 
   <style>
     :root{
@@ -18,7 +18,6 @@
     }
     *{ box-sizing:border-box; }
     body{ margin:0; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--ink); background:var(--bg); }
-
     header{
       background:var(--card);
       border-bottom:1px solid var(--line);
@@ -41,20 +40,13 @@
     .btn.success{ background:var(--ok); color:#fff; border-color:transparent; }
     .btn:active{ transform: translateY(1px); }
     .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
-
     input[type="file"]{
       position:absolute;
       left:-9999px;
       width:1px; height:1px;
       opacity:0;
     }
-
-    main{
-      padding:14px;
-      max-width: 1100px;
-      margin:0 auto;
-    }
-
+    main{ padding:14px; max-width: 1100px; margin:0 auto; }
     .card{
       background:var(--card);
       border:1px solid var(--line);
@@ -69,11 +61,9 @@
     }
     .card .hd strong{ font-size:13px; }
     .card .bd{ padding:14px; }
-
     .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
     @media (max-width: 700px){ .grid2,.grid3{ grid-template-columns:1fr; } }
-
     label{ display:block; font-size:11px; color:var(--muted); margin-bottom:6px; }
     .field{
       border:1px solid var(--line);
@@ -86,7 +76,6 @@
     }
     textarea.field{ min-height: 86px; resize: vertical; }
     .field:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-
     table{ width:100%; border-collapse:collapse; font-size:12px; }
     thead th{
       text-align:left; font-size:11px; color:var(--muted);
@@ -99,7 +88,6 @@
     .right{ text-align:right; }
     .muted{ color:var(--muted); }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
     .rowinput{
       width:100%;
       border:1px solid #eee;
@@ -110,14 +98,9 @@
       font: inherit;
     }
     .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    .toggle{
-      display:flex; align-items:center; justify-content:center;
-      gap:6px;
-    }
+    .toggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
     .toggle input{ transform: scale(1.05); }
-
     .hint{ font-size:11px; color:var(--muted); }
-
     .totals{
       display:grid;
       grid-template-columns: 1fr 1fr;
@@ -131,7 +114,6 @@
     }
     .totals .box .k{ font-size:11px; color:var(--muted); }
     .totals .box .v{ font-size:16px; font-weight:900; margin-top:4px; }
-
     .statusBar{
       border:1px solid #f0f0f0;
       border-radius:12px;
@@ -158,16 +140,7 @@
     .statusPill.warn{ color:var(--warn); border-color:#ffedd5; }
     .statusPill b{ color:inherit; }
 
-    /* -----------------------------
-       Printable invoice
-       ----------------------------- */
-    .invoicePaper{
-      background:#fff;
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:16px;
-    }
-
+    .invoicePaper{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; }
     .invoiceHeader{
       display:grid;
       grid-template-columns: 1fr 360px;
@@ -177,92 +150,36 @@
       padding-bottom:12px;
       margin-bottom:12px;
     }
-    @media (max-width: 900px){
-      .invoiceHeader{ grid-template-columns: 1fr; }
-    }
-
-    .brandRow{
-      display:grid;
-      grid-template-columns: 340px 1fr;
-      gap:14px;
-      align-items:start;
-    }
-    @media (max-width: 700px){
-      .brandRow{ grid-template-columns: 1fr; }
-    }
-
+    @media (max-width: 900px){ .invoiceHeader{ grid-template-columns: 1fr; } }
+    .brandRow{ display:grid; grid-template-columns: 340px 1fr; gap:14px; align-items:start; }
+    @media (max-width: 700px){ .brandRow{ grid-template-columns: 1fr; } }
     .logoBox{
-      width:340px;
-      height:160px;
+      width:340px; height:160px;
       border:1px solid #e6e6e6;
       border-radius:16px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      overflow:hidden;
-      background:#fff;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden; background:#fff;
       box-shadow: 0 2px 10px rgba(0,0,0,.06);
       padding:12px;
     }
-    .logoBox img{
-      max-width:100%;
-      max-height:100%;
-      width:auto;
-      height:auto;
-      object-fit:contain;
-      display:block;
-    }
-
-    .sellerHead{
-      border:1px solid #f0f0f0;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-      white-space:pre-wrap;
-      font-weight:700;
-    }
+    .logoBox img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+    .sellerHead{ border:1px solid #f0f0f0; border-radius:12px; padding:10px; background:#fff; white-space:pre-wrap; font-weight:700; }
     .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
-
-    .meta{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:8px;
-    }
+    .meta{ display:grid; grid-template-columns: 1fr; gap:8px; }
     .meta .kv{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      border:1px solid #f0f0f0;
-      border-radius:10px;
-      padding:8px 10px;
-      background:#fff;
+      display:flex; justify-content:space-between; gap:10px;
+      border:1px solid #f0f0f0; border-radius:10px;
+      padding:8px 10px; background:#fff;
     }
     .meta .kv b{ font-weight:800; }
     .meta .kv span{ color:var(--muted); }
-
-    .blocks{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-      margin-bottom:10px;
-    }
-    @media (max-width: 700px){
-      .blocks{ grid-template-columns: 1fr; }
-    }
-
-    .block{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-      min-height:90px;
-    }
+    .blocks{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:10px; }
+    @media (max-width: 700px){ .blocks{ grid-template-columns: 1fr; } }
+    .block{ border:1px solid #eee; border-radius:12px; padding:10px; background:#fff; min-height:90px; }
     .block .t{ font-size:11px; color:var(--muted); margin-bottom:6px; }
     .block .v{ font-weight:700; white-space:pre-wrap; }
-
     .paperTable th, .paperTable td{ padding:6px 6px; border-bottom:1px solid #eee; }
     .paperTable thead th{ position:static; top:auto; }
-
     .paperFooter{
       margin-top:12px;
       display:grid;
@@ -270,49 +187,23 @@
       gap:12px;
       align-items:start;
     }
-    @media (max-width: 900px){
-      .paperFooter{ grid-template-columns: 1fr; }
-    }
-
-    .paperTotals{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-    }
-    .paperTotals .line{
-      display:flex; justify-content:space-between; gap:10px; padding:4px 0;
-    }
+    @media (max-width: 900px){ .paperFooter{ grid-template-columns: 1fr; } }
+    .paperTotals{ border:1px solid #eee; border-radius:12px; padding:10px; }
+    .paperTotals .line{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; }
     .paperTotals .line b{ font-weight:900; }
-
-    .paperVat{
-      border:1px solid #eee;
-      border-radius:12px;
-      padding:10px;
-    }
-
+    .paperVat{ border:1px solid #eee; border-radius:12px; padding:10px; }
     .paperLegal{
-      margin-top:12px;
-      border-top:1px solid #eee;
-      padding-top:10px;
-      font-size:11px;
-      color:var(--muted);
-      line-height:1.35;
+      margin-top:12px; border-top:1px solid #eee; padding-top:10px;
+      font-size:11px; color:var(--muted); line-height:1.35;
     }
-    .paperLegalGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:14px;
-      align-items:start;
-    }
+    .paperLegalGrid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
     .paperLegalCol{ white-space:pre-wrap; }
     .paperLegalCol.right{ text-align:right; white-space:pre-wrap; }
     @media (max-width: 650px){
       .paperLegalGrid{ grid-template-columns: 1fr; }
       .paperLegalCol.right{ text-align:left; }
     }
-
     details summary{ cursor:pointer; font-weight:800; }
-
     @media print{
       body{ background:#fff; }
       header, .noPrint{ display:none !important; }
@@ -327,7 +218,7 @@
 
 <body>
 <header>
-  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import (verbessert) • Druck/PDF Export</h1>
+  <h1>Rechnungskorrektur (Option B): Credit korrekt • Detailzeile als eigene Position</h1>
 
   <div class="toolbar">
     <label class="btn primary" for="pdfFile">PDF importieren</label>
@@ -348,7 +239,7 @@
   <section class="card">
     <div class="hd">
       <strong>Editor</strong>
-      <span class="hint">Verkäuferadresse ist FIX. Credit bleibt Credit, aber MwSt? ist beim Import für Credit automatisch „Nein“.</span>
+      <span class="hint">Gedruckte Details (z.B. „19 X 94.00“) werden als eigene Zeile importiert (ohne Betrag, MwSt aus).</span>
     </div>
 
     <div class="bd">
@@ -437,7 +328,7 @@ Switzerland</textarea>
       <div class="card" style="border-radius:12px;">
         <div class="hd">
           <strong>Positionen</strong>
-          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert (gelb wie im Screenshot).</span>
+          <span class="hint">Credit-Zeilen: MwSt? wird beim Import automatisch deaktiviert.</span>
         </div>
         <div class="bd" style="padding:0;">
           <div style="max-height:340px; overflow:auto;">
@@ -716,7 +607,6 @@ CH-8050`;
     return isFinite(n) ? n : 0;
   }
   function round2(n){ return Math.round(n*100)/100; }
-
   function fmt(n){
     const cur = document.getElementById("currency").value || "CHF";
     return `${round2(n).toFixed(2)} ${cur}`;
@@ -779,8 +669,6 @@ CH-8050`;
       d.includes("city taxe")
     );
   }
-
-  // ✅ Credit-Zeilen: MwSt standardmäßig AUS
   function shouldDisableVatByRule(item){
     const credit = (item.credit === "" ? 0 : toNumber(item.credit));
     if (credit > 0) return true;
@@ -868,7 +756,6 @@ CH-8050`;
 
     const headerItems = rows.get(headerY).slice().sort((a,b)=>a.x-b.x);
 
-    // ✅ FIX: Nimm die X-Position vom Wort "Debit"/"Credit" (nicht das "CHF" rechts davon!)
     function findMinXContains(word){
       const w = String(word).toLowerCase();
       const hits = headerItems
@@ -877,7 +764,6 @@ CH-8050`;
       if (!hits.length) return null;
       return Math.min(...hits);
     }
-
     function findMinXRegex(re){
       const hits = headerItems
         .filter(o => re.test(String(o.str || "").trim()))
@@ -888,12 +774,9 @@ CH-8050`;
 
     const xDate   = findMinXRegex(/\bDate\b/i) ?? 0;
     const xVAT    = findMinXRegex(/\bVAT\b/i);
-
     const xDesc   = findMinXRegex(/\bDescription\b/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
     const xQty    = findMinXRegex(/\bQty\.?\b/i) ?? (xDesc + 220);
-
     const xDebit  = findMinXContains("debit") ?? (xQty + 60);
-
     let xCredit   = findMinXContains("credit");
     if (xCredit === null) xCredit = xDebit + 120;
     if (xCredit <= xDebit) xCredit = xDebit + 120;
@@ -952,13 +835,21 @@ CH-8050`;
       }
 
       const date = joinParts(buckets.date);
-      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
-
       const vat    = joinParts(buckets.vat);
       const desc   = joinParts(buckets.desc);
       const qty    = joinParts(buckets.qty);
       const debit  = joinParts(buckets.debit);
       const credit = joinParts(buckets.credit);
+
+      const isDateLine = /^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date);
+
+      const d = (desc || "").replace(/\s+/g," ").trim();
+      const isContinuation =
+        !date &&
+        !!d &&
+        /^-?\d+\s*[xX]\s*-?\d+(?:[.,]\d+)?$/.test(d);
+
+      if (!isDateLine && !isContinuation) continue;
 
       outLines.push([date, vat, desc, qty, debit, credit].join(" | ").trim());
     }
@@ -1051,8 +942,6 @@ CH-8050`;
     state.items.push({ date:"", desc:"", qty:"", unit:"", debit:"", credit:"", vatRate: 3.8, vatEnabled: true });
     renderItems();
   });
-
-  function round2(n){ return Math.round(n*100)/100; }
 
   function recalc(){
     state.items = state.items.map(it => {
@@ -1244,63 +1133,27 @@ CH-8050`;
     }
   });
 
-  // =============================================================
-  // PARSER (dein bestehender Parser – unverändert)
-  // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
-    const upper = t.toUpperCase();
     const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
 
-    const out = {
-      buyerAddressBlock: "",
-      reference: "",
-      invoiceNo: "",
-      invoiceDate: "",
-      currency: "",
-      arrival: "",
-      departure: "",
-      roomReservation: "",
-      items: []
-    };
+    const out = { buyerAddressBlock:"", reference:"", invoiceNo:"", invoiceDate:"", currency:"", arrival:"", departure:"", roomReservation:"", items:[] };
 
     const pick = (re) => {
       const m = t.match(re);
       return m ? (m[1] ?? "").trim() : "";
     };
-
     const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
 
     out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) || pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
-
     out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-
     if (out.invoiceDate) out.invoiceDate = normDate(out.invoiceDate);
     if (out.arrival) out.arrival = normDate(out.arrival);
     if (out.departure) out.departure = normDate(out.departure);
 
-    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
-    if (!out.currency){
-      const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
-      if (m) out.currency = m[1];
-    }
-
-    const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
-    if (roomRes1) out.roomReservation = roomRes1;
-    if (!out.roomReservation){
-      const rm = pick(/\bRoom\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
-      const rs = pick(/\bReservation\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
-      if (rm || rs){
-        out.roomReservation = [rm ? `Room ${rm}` : "", rs ? `Reservation ${rs}` : ""].filter(Boolean).join(" | ");
-      }
-    }
-
-    out.reference =
-      pick(/\bGuest\s*Name\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
-      pick(/\bReference\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i) ||
-      pick(/\bGastname\b\s*[:\-]?\s*([A-Z0-9][A-Z0-9 \-\/]{2,})/i);
+    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i) || (t.toUpperCase().match(/\b(CHF|EUR|USD|GBP)\b/)?.[1] ?? "");
 
     const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
     const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
@@ -1315,62 +1168,47 @@ CH-8050`;
       return n;
     }
 
-    function cleanupBuyerBlock(block){
-      const bl = String(block || "").split("\n").map(x=>x.trim()).filter(Boolean);
-      const filtered = bl.filter(l => !/^invoice\b/i.test(l));
-      return filtered.join("\n").trim();
-    }
-
-    (function parseBuyerAddress(){
-      const idxTo = lines.findIndex(l => /^To$/i.test(l));
-      if (idxTo >= 0){
-        let end = Math.min(lines.length, idxTo + 12);
-        const raw = lines.slice(idxTo+1, end).join("\n").trim();
-        const cleaned = cleanupBuyerBlock(raw);
-        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
-      }
-
-      const idxTax = lines.findIndex(l => /\b(TVA|VAT)\b\s*[:]/i.test(l));
-      if (idxTax >= 0){
-        const start = Math.max(0, idxTax - 2);
-        const end = Math.min(lines.length, idxTax + 4);
-        const raw = lines.slice(start, end).join("\n").trim();
-        const cleaned = cleanupBuyerBlock(raw);
-        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
-      }
-
-      const idxSL = lines.findIndex(l => /\bS\.L\.\b/i.test(l) || /TOUR\s+OPERATOR/i.test(l));
-      if (idxSL >= 0){
-        let end = idxSL + 1;
-        while (end < lines.length){
-          const l = lines[end];
-          if (/^INVOICE$/i.test(l)) break;
-          if (/^Invoice\s*No\.?/i.test(l)) break;
-          if (/^Date\b/i.test(l)) break;
-          if (/^\d{2}[./]\d{2}[./]\d{2,4}\b/.test(l)) break;
-          end++;
-          if (end - idxSL > 8) break;
-        }
-        const raw = lines.slice(idxSL, end).join("\n").trim();
-        const cleaned = cleanupBuyerBlock(raw);
-        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
-      }
-    })();
-
     const items = [];
 
     for (const line of lines){
       if (!line.includes("|")) continue;
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
 
-      const date = parts[0] || "";
-      if (!/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date)) continue;
+      const dateRaw = parts[0] || "";
+      const isDateLine = /^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(dateRaw);
 
       const desc = parts[2] ?? "";
       const qtyCell = parts[3] ?? "";
       const debitCell = parts[4] ?? "";
       const creditCell = parts[5] ?? "";
 
+      const descClean = String(desc || "").replace(/\s+/g," ").trim();
+      const contMatch = (!isDateLine && /^-?\d+\s*[xX]\s*-?\d+(?:[.,]\d+)?$/.test(descClean))
+        ? descClean.match(/^(-?\d+)\s*[xX]\s*(-?\d+(?:[.,]\d+)?)$/)
+        : null;
+
+      // ✅ OPTION B: Fortsetzungszeile wird als eigene Position hinzugefügt
+      if (contMatch){
+        const prev = items[items.length - 1];
+        const q = toNumber(contMatch[1]);
+        const u = toNumber(contMatch[2]);
+
+        items.push({
+          date: prev?.date ?? "",                     // gleiche Datum-Zeile (optisch schöner)
+          desc: `${contMatch[1]} X ${contMatch[2]}`,  // nur Detailtext
+          qty: q,
+          unit: u,
+          debit: "",
+          credit: "",
+          vatRate: 0,
+          vatEnabled: false                           // wichtig: beeinflusst Totale nicht
+        });
+        continue;
+      }
+
+      if (!isDateLine) continue;
+
+      const date = normDate(dateRaw);
       const qty = (/^\d{1,6}$/.test(qtyCell) ? toNumber(qtyCell) : "");
 
       let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
@@ -1384,7 +1222,7 @@ CH-8050`;
       }
 
       const item = {
-        date: normDate(date),
+        date,
         desc,
         qty: qty === "" ? "" : qty,
         unit: "",
@@ -1403,28 +1241,19 @@ CH-8050`;
     }
 
     out.items = items;
-
-    const hasAnything =
-      !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
-      !!out.roomReservation || (out.items && out.items.length > 0) ||
-      !!out.buyerAddressBlock || !!out.reference;
-
-    return hasAnything ? out : null;
+    return (items.length > 0 || out.invoiceNo || out.invoiceDate) ? out : null;
   }
 
   function applyParsed(d){
     if (!d) return;
-
     if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
     if (d.reference) setV("reference", d.reference);
-
     if (d.invoiceNo) setV("invoiceNo", d.invoiceNo);
     if (d.invoiceDate) setV("invoiceDate", d.invoiceDate);
     if (d.currency) setV("currency", d.currency);
     if (d.arrival) setV("arrival", d.arrival);
     if (d.departure) setV("departure", d.departure);
     if (d.roomReservation) setV("roomReservation", d.roomReservation);
-
     if (Array.isArray(d.items)) state.items = d.items;
     renderItems();
   }
@@ -1504,11 +1333,9 @@ CH-8050`;
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("importPill", "<b>Import:</b> bereit", "");
     setPill("exportPill", "<b>Export:</b> bereit (wird bei Bedarf geladen)", "");
-
     state.items = [];
     renderItems();
     recalc();
-
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   })();
