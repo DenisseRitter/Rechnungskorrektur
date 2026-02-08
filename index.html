@@ -768,6 +768,19 @@ CH-8050`;
       d.includes("card")
     );
   }
+
+  // ✅ NEU (minimal): Heuristik für "das ist eindeutig ein Credit"
+  function isCreditLikeDesc(desc){
+    const d = String(desc || "").toLowerCase();
+    return (
+      isPaymentDesc(desc) ||
+      d.includes("credit") ||
+      d.includes("refund") ||
+      d.includes("reversal") ||
+      d.includes("chargeback")
+    );
+  }
+
   function keepNegativeInDebit(desc){
     const d = String(desc || "").toLowerCase();
     return (
@@ -780,10 +793,10 @@ CH-8050`;
     );
   }
 
-  // ✅ Credit-Zeilen: MwSt standardmäßig AUS
+  // ✅ NEU: Credit-Zeilen sind weiterhin Credit, aber MwSt standardmäßig aus
   function shouldDisableVatByRule(item){
     const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-    if (credit > 0) return true;
+    if (credit > 0) return true;              // <-- exakt dein Wunsch
     if (isPaymentDesc(item.desc)) return true;
     return false;
   }
@@ -868,35 +881,28 @@ CH-8050`;
 
     const headerItems = rows.get(headerY).slice().sort((a,b)=>a.x-b.x);
 
-    // ✅ FIX: Nimm die X-Position vom Wort "Debit"/"Credit" (nicht das "CHF" rechts davon!)
-    function findMinXContains(word){
-      const w = String(word).toLowerCase();
-      const hits = headerItems
-        .filter(o => String(o.str || "").toLowerCase().includes(w))
-        .map(o => o.x);
-      if (!hits.length) return null;
-      return Math.min(...hits);
+    // ✅ FIX: Header-Erkennung toleranter (Credit/Debit nicht nur exakt "Credit")
+    function findX(wordRe){
+      const hit = headerItems.find(o => wordRe.test(String(o.str || "").trim()));
+      return hit ? hit.x : null;
     }
 
-    function findMinXRegex(re){
-      const hits = headerItems
-        .filter(o => re.test(String(o.str || "").trim()))
-        .map(o => o.x);
-      if (!hits.length) return null;
-      return Math.min(...hits);
+    const xDate   = findX(/\bDate\b/i) ?? 0;
+    const xVAT    = findX(/\bVAT\b/i);
+    const xDesc   = findX(/\bDescription\b/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
+    const xQty    = findX(/\bQty\.?\b/i) ?? (xDesc + 220);
+
+    const xDebit  = findX(/\bDebit\b/i) ?? (xQty + 60);
+
+    // Wenn Credit nicht sauber gefunden wird: nimm rechten Rand (rechter Header-Text)
+    let xCredit = findX(/\bCredit\b/i);
+    if (xCredit === null){
+      const rightmost = headerItems[headerItems.length - 1];
+      // Falls der rechte Header sehr weit rechts ist, ist das i.d.R. Credit.
+      xCredit = rightmost ? rightmost.x : (xDebit + 80);
+      // Sicherstellen: Credit muss rechts von Debit liegen
+      if (xCredit <= xDebit) xCredit = xDebit + 90;
     }
-
-    const xDate   = findMinXRegex(/\bDate\b/i) ?? 0;
-    const xVAT    = findMinXRegex(/\bVAT\b/i);
-
-    const xDesc   = findMinXRegex(/\bDescription\b/i) ?? (xVAT ? xVAT + 40 : xDate + 80);
-    const xQty    = findMinXRegex(/\bQty\.?\b/i) ?? (xDesc + 220);
-
-    const xDebit  = findMinXContains("debit") ?? (xQty + 60);
-
-    let xCredit   = findMinXContains("credit");
-    if (xCredit === null) xCredit = xDebit + 120;
-    if (xCredit <= xDebit) xCredit = xDebit + 120;
 
     const xVatResolved = (xVAT ?? ((xDate + xDesc) / 2));
 
@@ -1051,8 +1057,6 @@ CH-8050`;
     state.items.push({ date:"", desc:"", qty:"", unit:"", debit:"", credit:"", vatRate: 3.8, vatEnabled: true });
     renderItems();
   });
-
-  function round2(n){ return Math.round(n*100)/100; }
 
   function recalc(){
     state.items = state.items.map(it => {
@@ -1245,7 +1249,11 @@ CH-8050`;
   });
 
   // =============================================================
-  // PARSER (dein bestehender Parser – unverändert)
+  // PARSER (angepasst):
+  // 1) Credit bleibt Credit (wird nicht umgebucht)
+  // 2) MwSt? bei Credit beim Import: FALSE
+  // 3) Wort "Invoice" aus Kundenadresse entfernen
+  // 4) ✅ FIX: Wenn Credit im PDF fälschlich in Debit landet -> bei "Credit-like" Text nach Credit schieben
   // =============================================================
   function parseInvoiceFromText(text){
     const t = (text || "");
@@ -1359,6 +1367,7 @@ CH-8050`;
 
     const items = [];
 
+    // A) Pipe lines
     for (const line of lines){
       if (!line.includes("|")) continue;
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
@@ -1376,11 +1385,21 @@ CH-8050`;
       let debitVal = debitCell ? parseMoneyCell(debitCell) : "";
       let creditVal = creditCell ? parseMoneyCell(creditCell) : "";
 
+      // Falls Debit negativ ist und es keine Credit-Spalte gab:
+      // - bei (Accommodation/Manual/CityTax) bleibt negativ im Debit
+      // - sonst wird es zu Credit (positiv)
       if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
         if (!keepNegativeInDebit(desc)){
           creditVal = Math.abs(debitVal);
           debitVal = "";
         }
+      }
+
+      // ✅ FIX: Wenn Credit im PDF in Debit "reinrutscht" (z.B. Payment/Deposit/CC),
+      // dann schiebe Debit -> Credit, sobald Credit leer ist und Text Credit-like ist.
+      if ((creditVal === "" || creditVal === 0) && debitVal !== "" && debitVal > 0 && isCreditLikeDesc(desc)){
+        creditVal = Math.abs(debitVal);
+        debitVal = "";
       }
 
       const item = {
@@ -1400,6 +1419,78 @@ CH-8050`;
       }
 
       items.push(item);
+    }
+
+    // B) Non-pipe fallback
+    if (items.length === 0){
+      const lineRe = /^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.*?)\s+(\d{1,6})\s*([\-]?\(?\d[\d.,']*\)?)\s*$/;
+      for (const ln of lines){
+        const m = ln.match(lineRe);
+        if (!m) continue;
+
+        const date = m[1];
+        const desc = (m[2] || "").trim();
+        const qty = toNumber(m[3]);
+        const amount = parseMoneyCell(m[4]); // can be negative
+
+        let item;
+
+        if (amount < 0 && keepNegativeInDebit(desc)){
+          item = {
+            date: normDate(date),
+            desc,
+            qty,
+            unit: "",
+            debit: amount,
+            credit: "",
+            vatRate: defaultRate,
+            vatEnabled: true
+          };
+        } else if (amount < 0) {
+          item = {
+            date: normDate(date),
+            desc,
+            qty,
+            unit: "",
+            debit: "",
+            credit: Math.abs(amount),
+            vatRate: defaultRate,
+            vatEnabled: true
+          };
+        } else {
+          // ✅ FIX analog: wenn positive Amount aber Beschreibung Credit-like => als Credit behandeln
+          if (isCreditLikeDesc(desc)){
+            item = {
+              date: normDate(date),
+              desc,
+              qty,
+              unit: "",
+              debit: "",
+              credit: Math.abs(amount),
+              vatRate: defaultRate,
+              vatEnabled: true
+            };
+          } else {
+            item = {
+              date: normDate(date),
+              desc,
+              qty,
+              unit: "",
+              debit: Math.abs(amount),
+              credit: "",
+              vatRate: defaultRate,
+              vatEnabled: true
+            };
+          }
+        }
+
+        if (shouldDisableVatByRule(item)){
+          item.vatEnabled = false;
+          item.vatRate = 0;
+        }
+
+        items.push(item);
+      }
     }
 
     out.items = items;
