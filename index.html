@@ -101,7 +101,7 @@
   <div class="toolbar">
     <button class="btn" id="clearDebugTopBtn" type="button">Debug-Text leeren</button>
     <input id="pdfFile" type="file" accept="application/pdf" style="display:none" />
-    <button class="btn warn" id="manualImportBtn" type="button" title="Importiert direkt aus dem Debug-Textfeld">Import aus Debug-Text</button>
+    <!-- Entfernt: Import aus Debug-Text (oben) -->
     <button class="btn" id="addRowBtn" type="button">+ Position</button>
     <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
     <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
@@ -189,7 +189,7 @@
         <span class="statusPill" id="importPill"><b>Import:</b> —</span>
         <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
         <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
-        <span class="hint" id="importHint">Fallback: Text ins Debug-Feld einfügen → „Import aus Debug-Text“.</span>
+        <span class="hint" id="importHint">Fallback: Text ins Debug-Feld einfügen → „Aus Debug-Text importieren“.</span>
       </div>
 
       <div style="height:14px;"></div>
@@ -447,6 +447,14 @@
     const n = toNumber(x);
     return isFinite(n) ? round2(n).toFixed(2) : "";
   }
+  // QTY: Standardzahlen ohne Dezimal/Komma
+  function displayInt(x){
+    if (x === "" || x === null || x === undefined) return "";
+    const n = toNumber(x);
+    if (!isFinite(n)) return "";
+    return String(Math.round(n));
+  }
+
   function escapeHtml(s){
     return String(s ?? "")
       .replaceAll("&","&amp;")
@@ -725,7 +733,7 @@
       tr.innerHTML = `
         <td><input class="rowinput mono" type="date" value="${escapeHtml(dateToInputValue(it.date ?? ""))}" data-k="date" data-i="${idx}"></td>
         <td><input class="rowinput" value="${escapeHtml(it.desc ?? "")}" data-k="desc" data-i="${idx}"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.qty))}" data-k="qty" data-i="${idx}" inputmode="decimal"></td>
+        <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayInt(it.qty))}" data-k="qty" data-i="${idx}" inputmode="numeric"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.unit))}" data-k="unit" data-i="${idx}" inputmode="decimal"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.debit))}" data-k="debit" data-i="${idx}" inputmode="decimal"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.credit))}" data-k="credit" data-i="${idx}" inputmode="decimal"></td>
@@ -760,14 +768,18 @@
     recalc();
   });
 
-  // Format numeric inputs on blur to always show 2 decimals
+  // Format numeric inputs on blur (QTY bleibt ohne Dezimalstellen)
   tbody.addEventListener("blur", (e) => {
     const el = e.target;
     if (!el || !el.dataset || el.dataset.i === undefined) return;
     const k = el.dataset.k;
-    if (["qty","unit","debit","credit"].includes(k)){
+    if (["unit","debit","credit"].includes(k)){
       const s = String(el.value ?? "").trim();
       el.value = s ? displayNum2(s) : "";
+    }
+    if (k === "qty"){
+      const s = String(el.value ?? "").trim();
+      el.value = s ? displayInt(s) : "";
     }
   }, true);
 
@@ -902,7 +914,7 @@
       tr.innerHTML = `
         <td class="mono">${escapeHtml(isoToDmy(it.date ?? ""))}</td>
         <td>${escapeHtml(it.desc ?? "")}</td>
-        <td class="num mono">${(it.qty === "" ? "" : toNumber(it.qty).toFixed(2))}</td>
+        <td class="num mono">${(it.qty === "" ? "" : displayInt(it.qty))}</td>
         <td class="num mono">${(it.unit === "" ? "" : toNumber(it.unit).toFixed(2))}</td>
         <td class="num mono">${(it.debit === "" ? "" : fmt(toNumber(it.debit)))}</td>
         <td class="num mono">${(it.credit === "" ? "" : fmt(toNumber(it.credit)))}</td>
@@ -1322,7 +1334,7 @@
     const ok = await ensurePdfJsReady();
     if (!ok){
       setPill("importPill", `<b>Import:</b> blockiert (Text-Fallback)`, "warn");
-      alert("PDF.js ist blockiert. Bitte Text im Debug-Feld einfügen und „Import aus Debug-Text“ nutzen.");
+      alert("PDF.js ist blockiert. Bitte Text im Debug-Feld einfügen und „Aus Debug-Text importieren“ nutzen.");
       e.target.value = "";
       return;
     }
@@ -1382,7 +1394,7 @@
     }
   }
 
-  document.getElementById("manualImportBtn").addEventListener("click", () => importFromDebugText("Debug-Text"));
+  // Entfernt: manualImportBtn oben
   document.getElementById("importFromDebugBtn").addEventListener("click", () => importFromDebugText("Debug-Text"));
 
   document.getElementById("clearDebugBtn").addEventListener("click", () => {
