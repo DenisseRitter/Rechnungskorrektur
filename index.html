@@ -155,6 +155,14 @@
 
       <div class="grid3">
         <div>
+          <label>Rechnungsart</label>
+          <select id="invoiceType" class="field">
+            <option value="INVOICE">Invoice</option>
+            <option value="PROFORMA-INVOICE">Proforma-Invoice</option>
+            <option value="INFORMATION-INVOICE">Information-Invoice</option>
+          </select>
+        </div>
+        <div>
           <label>Invoice No.</label>
           <input id="invoiceNo" class="field" value="" />
         </div>
@@ -162,15 +170,15 @@
           <label>Rechnungsdatum</label>
           <input id="invoiceDate" class="field" type="date" value="" />
         </div>
-        <div>
-          <label>Währung</label>
-          <input id="currency" class="field" value="CHF" />
-        </div>
       </div>
 
       <div style="height:10px;"></div>
 
       <div class="grid3">
+        <div>
+          <label>Währung</label>
+          <input id="currency" class="field" value="CHF" />
+        </div>
         <div>
           <label>Anreise</label>
           <input id="arrival" class="field" type="date" value="" />
@@ -179,10 +187,17 @@
           <label>Abreise</label>
           <input id="departure" class="field" type="date" value="" />
         </div>
+      </div>
+
+      <div style="height:10px;"></div>
+
+      <div class="grid3">
         <div>
           <label>Zimmer / Reservation</label>
           <input id="roomReservation" class="field" value="" />
         </div>
+        <div></div>
+        <div></div>
       </div>
 
       <div class="statusBar">
@@ -220,6 +235,21 @@
           </div>
         </div>
       </div>
+
+      <!-- Dropdown-Quelle für Description -->
+      <datalist id="descOptions">
+        <option value="Room Hire"></option>
+        <option value="Accommodation"></option>
+        <option value="Manual Accomodation"></option>
+        <option value="Parking"></option>
+        <option value="City Tax"></option>
+        <option value="Breakfast"></option>
+        <option value="Twin room"></option>
+        <option value="Double room"></option>
+        <option value="Single room"></option>
+        <option value="Triple room"></option>
+        <option value="FOC"></option>
+      </datalist>
 
       <div style="height:14px;"></div>
 
@@ -278,7 +308,7 @@
           </div>
 
           <div>
-            <div style="font-weight:900;font-size:16px;margin-bottom:6px;">INVOICE</div>
+            <div id="p_invoiceTitle" style="font-weight:900;font-size:16px;margin-bottom:6px;">INVOICE</div>
             <div class="meta">
               <div class="kv"><span>Invoice No.</span><b id="p_invoiceNo">—</b></div>
               <div class="kv"><span>Date</span><b id="p_invoiceDate">—</b></div>
@@ -365,8 +395,58 @@
 </main>
 
 <script>
-  const FIXED_FOOTER_LEFT = `Essendi Switzerland SA (ehem. AccorInvest) UBS SA Konto-Nr: 243-442422.05R IBAN: CH24 0024 3243 4424 2205 R BIC: UBSWCHZH80A USt-IdNr. CHE-106.003.397 MWST`;
-  const FIXED_FOOTER_RIGHT = `ESSENDI SWITZERLAND SA Management Switzerland ibis Zurich Messe Airport Heidi Abel-Weg 5 CH-8050`;
+  // 1) Fusszeile wie im Bild (fix, pro Zeile)
+  const FIXED_FOOTER_LEFT =
+`Essendi Switzerland SA (ehem. AccorInvest)
+UBS SA
+Konto-Nr: 243-442422.05R
+IBAN: CH24 0024 3243 4424 2205 R
+BIC: UBSWCHZH80A
+USt-IdNr. CHE-106.003.397 MWST`;
+
+  const FIXED_FOOTER_RIGHT =
+`ESSENDI SWITZERLAND SA
+Management Switzerland
+ibis Zurich Messe Airport
+Heidi Abel-Weg 5
+CH-8050`;
+
+  // 3) Description -> VAT Mapping (Bild 2)
+  const DESC_VAT_MAP = new Map([
+    ["room hire", 8.1],
+    ["parking", 8.1],
+
+    ["accommodation", 3.8],
+    ["accomodation", 3.8],
+    ["manual accomodation", 3.8],
+    ["manual accommodation", 3.8],
+    ["city tax", 3.8],
+    ["breakfast", 3.8],
+    ["twin room", 3.8],
+    ["double room", 3.8],
+    ["single room", 3.8],
+    ["triple room", 3.8],
+    ["foc", 3.8],
+  ]);
+
+  function normalizeDescKey(s){
+    return String(s || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g," ");
+  }
+
+  function getMappedVatForDesc(desc){
+    const key = normalizeDescKey(desc);
+    if (!key) return null;
+    // exact match first
+    if (DESC_VAT_MAP.has(key)) return DESC_VAT_MAP.get(key);
+    // fallback: contains match (safe for long imported descriptions)
+    for (const [k, rate] of DESC_VAT_MAP.entries()){
+      if (key.includes(k)) return rate;
+    }
+    return null;
+  }
 
   const LIBS = {
     pdfjs: [
@@ -530,14 +610,22 @@
     );
   }
 
-  // Auto VAT rules requested: Parking / Room hire => 8.1%
+  // Auto VAT rules: mapping from dropdown + legacy rule behavior
   function applyAutoVatRules(item){
-    const d = String(item?.desc || "").toLowerCase();
-    const hit = d.includes("parking") || d.includes("room hire");
-    if (!hit) return;
-    item.vatRate = 8.1;
-    const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-    if (credit > 0) item.vatEnabled = false;
+    const mapped = getMappedVatForDesc(item?.desc || "");
+    if (mapped !== null && mapped !== undefined){
+      item.vatRate = mapped;
+      const credit = (item.credit === "" ? 0 : toNumber(item.credit));
+      if (credit > 0) item.vatEnabled = false;
+    } else {
+      // keep old behavior (only if mapping didn't match)
+      const d = String(item?.desc || "").toLowerCase();
+      const hit = d.includes("parking") || d.includes("room hire");
+      if (!hit) return;
+      item.vatRate = 8.1;
+      const credit = (item.credit === "" ? 0 : toNumber(item.credit));
+      if (credit > 0) item.vatEnabled = false;
+    }
   }
 
   function shouldDisableVatByRule(item){
@@ -732,7 +820,7 @@
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><input class="rowinput mono" type="date" value="${escapeHtml(dateToInputValue(it.date ?? ""))}" data-k="date" data-i="${idx}"></td>
-        <td><input class="rowinput" value="${escapeHtml(it.desc ?? "")}" data-k="desc" data-i="${idx}"></td>
+        <td><input class="rowinput" list="descOptions" value="${escapeHtml(it.desc ?? "")}" data-k="desc" data-i="${idx}" placeholder="Wählen oder tippen…"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayInt(it.qty))}" data-k="qty" data-i="${idx}" inputmode="numeric"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.unit))}" data-k="unit" data-i="${idx}" inputmode="decimal"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.debit))}" data-k="debit" data-i="${idx}" inputmode="decimal"></td>
@@ -751,6 +839,27 @@
     recalc();
   }
 
+  function applyDescVatOnEdit(i){
+    const it = state.items[i];
+    if (!it) return;
+    // If it's a credit/payment line, existing rules win
+    applyAutoVatRules(it);
+    if (shouldDisableVatByRule(it)){
+      it.vatEnabled = false;
+      it.vatRate = 0;
+    } else {
+      // If it was disabled due to old desc but now not, keep enabled
+      if (it.vatEnabled === false && (toNumber(it.credit) === 0)) {
+        it.vatEnabled = true;
+      }
+      // ensure mapping applies if any
+      const mapped = getMappedVatForDesc(it.desc || "");
+      if (mapped !== null && mapped !== undefined){
+        it.vatRate = mapped;
+      }
+    }
+  }
+
   tbody.addEventListener("input", (e) => {
     const el = e.target;
     if (!el.dataset || el.dataset.i === undefined) return;
@@ -765,6 +874,14 @@
     } else {
       state.items[i][k] = vv;
     }
+
+    if (k === "desc"){
+      applyDescVatOnEdit(i);
+      // rerender to reflect changed VAT in input if needed
+      renderItems();
+      return;
+    }
+
     recalc();
   });
 
@@ -887,7 +1004,15 @@
     syncPrintable(totalDebit, totalCredit, balance);
   }
 
+  function getInvoiceTitle(){
+    const type = (v("invoiceType") || "INVOICE").toUpperCase();
+    if (type === "PROFORMA-INVOICE") return "PROFORMA-INVOICE";
+    if (type === "INFORMATION-INVOICE") return "INFORMATION-INVOICE";
+    return "INVOICE";
+  }
+
   function syncPrintable(totalDebit, totalCredit, balance){
+    setText("p_invoiceTitle", getInvoiceTitle());
     setText("p_invoiceNo", v("invoiceNo") || "—");
     setText("p_invoiceDate", isoToDmy(v("invoiceDate")) || "—");
     setText("p_arrival", isoToDmy(v("arrival")) || "—");
@@ -930,6 +1055,10 @@
     setText("p_legalLeft", FIXED_FOOTER_LEFT);
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   }
+
+  // Sync printable when header fields change
+  ["invoiceType","sellerName","sellerContact","sellerExtra","sellerAddressBlock","buyerAddressBlock","reference","invoiceNo","invoiceDate","currency","arrival","departure","roomReservation"]
+    .forEach(id => document.getElementById(id)?.addEventListener("input", () => recalc()));
 
   document.getElementById("printBtn").addEventListener("click", () => { recalc(); window.print(); });
 
@@ -980,7 +1109,8 @@
       }
 
       const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g,"_");
-      pdf.save(`Finale_Rechnung_${inv}.pdf`);
+      const title = getInvoiceTitle().replace(/[^\w\-]+/g,"_");
+      pdf.save(`Finale_${title}_${inv}.pdf`);
       setPill("exportPill", "<b>Export:</b> PDF erstellt ✓", "ok");
     } catch (err){
       setPill("exportPill", "<b>Export:</b> Fehler", "warn");
@@ -1415,6 +1545,8 @@
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("exportPill", "<b>Export:</b> bereit", "");
     renderItems();
+    // initial sync
+    recalc();
   })();
 </script>
 </body>
