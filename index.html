@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export (Fix: Adresse/Guest Name/Credit-VAT)</title>
+  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export</title>
   <style>
     :root{ --ink:#111; --muted:#666; --line:#d9d9d9; --bg:#fafafa; --card:#fff; --accent:#1d4ed8; --ok:#0f766e; --warn:#b45309; }
     *{ box-sizing:border-box; }
@@ -99,9 +99,8 @@
 <header>
   <h1>Rechnungskorrektur: MwSt pro Position • PDF Import • Druck/PDF Export</h1>
   <div class="toolbar">
-    <button class="btn" id="clearDebugTopBtn" type="button">Debug-Text leeren</button>
+    <button class="btn" id="clearDebugTopBtn" type="button" onclick="window.clearDebugText()">Debug-Text leeren</button>
     <input id="pdfFile" type="file" accept="application/pdf" style="display:none" />
-    <!-- Entfernt: Import aus Debug-Text (oben) -->
     <button class="btn" id="addRowBtn" type="button">+ Position</button>
     <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
     <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
@@ -204,7 +203,7 @@
         <span class="statusPill" id="importPill"><b>Import:</b> —</span>
         <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
         <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
-        <span class="hint" id="importHint">Fallback: Text ins Debug-Feld einfügen → „Aus Debug-Text importieren“.</span>
+        <span class="hint" id="importHint">Tipp: Für Gruppenrechnungen (2-Zeilen-Positionen) im Debug-Feld den Modus unten umstellen.</span>
       </div>
 
       <div style="height:14px;"></div>
@@ -233,10 +232,24 @@
               <tbody></tbody>
             </table>
           </div>
+  <datalist id="descList">
+    <option value="Room Hire"></option>
+    <option value="Accommodation"></option>
+    <option value="Manual Accomodation"></option>
+    <option value="Manual Accommodation"></option>
+    <option value="Parking"></option>
+    <option value="City Tax"></option>
+    <option value="Breakfast"></option>
+    <option value="Twin room"></option>
+    <option value="Double room"></option>
+    <option value="Single room"></option>
+    <option value="Triple room"></option>
+    <option value="FOC"></option>
+  </datalist>
+
         </div>
       </div>
 
-      <!-- Dropdown-Quelle für Description -->
       <datalist id="descOptions">
         <option value="Room Hire"></option>
         <option value="Accommodation"></option>
@@ -382,11 +395,29 @@
       <details class="card" style="border-radius:12px;">
         <summary class="hd"><strong>Import-Text (Debug) anzeigen</strong><span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span></summary>
         <div class="bd">
+          <div class="grid3">
+            <div>
+              <label>Text-Import Modus</label>
+              <select id="importMode" class="field">
+                <option value="single">Standard (1 Zeile pro Position)</option>
+                <option value="twoLine">Gruppenrechnung (2 Zeilen zusammenfassen)</option>
+                <option value="detailLine">Gruppenrechnung (3 Zeilen: Description + Detail + Betrag)</option>
+              </select>
+            </div>
+            <div class="hint" style="align-self:end;">
+              Bei <b>2-Zeilen</b>: Datum-Zeile + Betrags-Zeile werden zusammengeführt.
+              Bei <b>3-Zeilen</b>: Datum+Description + Detailzeile (z.B. "23 X 94.00") + Qty/Betrag werden zu 1 Position.
+            </div>
+            <div></div>
+          </div>
+
+          <div style="height:10px;"></div>
+
           <label>Ausgelesener / eingefügter Text</label>
           <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text … (oder hier einfügen)."></textarea>
           <div class="noPrint" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn warn" id="importFromDebugBtn" type="button">Aus Debug-Text importieren</button>
-            <button class="btn" id="clearDebugBtn" type="button">Debug-Text leeren</button>
+            <button class="btn warn" id="importFromDebugBtn" type="button" onclick="window.importFromDebugText('Debug-Text')">Aus Debug-Text importieren</button>
+            <button class="btn" id="clearDebugBtn" type="button" onclick="window.clearDebugText()">Debug-Text leeren</button>
           </div>
         </div>
       </details>
@@ -395,7 +426,13 @@
 </main>
 
 <script>
-  // 1) Fusszeile wie im Bild (fix, pro Zeile)
+  window.addEventListener("error", (e) => {
+    console.error("JS Error:", e?.message || e);
+    // Optional: show a small hint once
+    const pill = document.getElementById("importPill");
+    if (pill) pill.innerHTML = `<b>Import:</b> JavaScript-Fehler (Konsole prüfen)`;
+  });
+
   const FIXED_FOOTER_LEFT =
 `Essendi Switzerland SA (ehem. AccorInvest)
 UBS SA
@@ -411,11 +448,9 @@ ibis Zurich Messe Airport
 Heidi Abel-Weg 5
 CH-8050`;
 
-  // 3) Description -> VAT Mapping (Bild 2)
   const DESC_VAT_MAP = new Map([
     ["room hire", 8.1],
     ["parking", 8.1],
-
     ["accommodation", 3.8],
     ["accomodation", 3.8],
     ["manual accomodation", 3.8],
@@ -430,18 +465,12 @@ CH-8050`;
   ]);
 
   function normalizeDescKey(s){
-    return String(s || "")
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g," ");
+    return String(s || "").toLowerCase().trim().replace(/\s+/g," ");
   }
-
   function getMappedVatForDesc(desc){
     const key = normalizeDescKey(desc);
     if (!key) return null;
-    // exact match first
     if (DESC_VAT_MAP.has(key)) return DESC_VAT_MAP.get(key);
-    // fallback: contains match (safe for long imported descriptions)
     for (const [k, rate] of DESC_VAT_MAP.entries()){
       if (key.includes(k)) return rate;
     }
@@ -493,13 +522,37 @@ CH-8050`;
 
   const state = { items: [] };
 
+  const DESCRIPTION_VAT = {
+    "Room Hire": 8.1,
+    "Accommodation": 3.8,
+    "Manual Accomodation": 3.8,
+    "Manual Accommodation": 3.8,
+    "Parking": 8.1,
+    "City Tax": 3.8,
+    "Breakfast": 3.8,
+    "Twin room": 3.8,
+    "Double room": 3.8,
+    "Single room": 3.8,
+    "Triple room": 3.8,
+    "FOC": 3.8,
+  };
+
+  function applyDescriptionVat(item){
+    const key = String(item?.desc || "").trim();
+    if (!key) return;
+    if (Object.prototype.hasOwnProperty.call(DESCRIPTION_VAT, key)){
+      item.vatRate = DESCRIPTION_VAT[key];
+      const credit = (item.credit === "" ? 0 : toNumber(item.credit));
+      if (credit > 0) item.vatEnabled = false;
+    }
+  }
+
+
   function toNumber(val){
     if (val === null || val === undefined) return 0;
     if (typeof val === "number") return isFinite(val) ? val : 0;
-
     let s = String(val).trim();
     if (!s) return 0;
-
     s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
     const hasDot = s.includes(".");
     const hasComma = s.includes(",");
@@ -527,7 +580,6 @@ CH-8050`;
     const n = toNumber(x);
     return isFinite(n) ? round2(n).toFixed(2) : "";
   }
-  // QTY: Standardzahlen ohne Dezimal/Komma
   function displayInt(x){
     if (x === "" || x === null || x === undefined) return "";
     const n = toNumber(x);
@@ -610,22 +662,20 @@ CH-8050`;
     );
   }
 
-  // Auto VAT rules: mapping from dropdown + legacy rule behavior
   function applyAutoVatRules(item){
     const mapped = getMappedVatForDesc(item?.desc || "");
     if (mapped !== null && mapped !== undefined){
       item.vatRate = mapped;
       const credit = (item.credit === "" ? 0 : toNumber(item.credit));
       if (credit > 0) item.vatEnabled = false;
-    } else {
-      // keep old behavior (only if mapping didn't match)
-      const d = String(item?.desc || "").toLowerCase();
-      const hit = d.includes("parking") || d.includes("room hire");
-      if (!hit) return;
-      item.vatRate = 8.1;
-      const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-      if (credit > 0) item.vatEnabled = false;
+      return;
     }
+    const d = String(item?.desc || "").toLowerCase();
+    const hit = d.includes("parking") || d.includes("room hire");
+    if (!hit) return;
+    item.vatRate = 8.1;
+    const credit = (item.credit === "" ? 0 : toNumber(item.credit));
+    if (credit > 0) item.vatEnabled = false;
   }
 
   function shouldDisableVatByRule(item){
@@ -635,6 +685,154 @@ CH-8050`;
     if (d.includes("credit chf") || d.includes("credit")) return true;
     if (isPaymentDesc(item.desc)) return true;
     return false;
+  }
+
+  // NEW: 2-line preprocess option for debug import
+  function preprocessTextForImportMode(text, mode){
+    let rawLines = String(text || "").replace(/\r/g,"").split("\n");
+
+    // Normalize one-line packed format:
+    // "05.02.26 Manual Accomodation-1 X 97.50-97.50"
+    rawLines = rawLines.flatMap(line => {
+      const s = String(line || "").trim();
+      const m = s.match(/^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.+?)-\s*(\d+\s*[xX]\s*-?\d+(?:[.,]\d{2}))-\s*([\-–]?\d[\d’'\s.,]*[.,]\d{2})\s*$/);
+      if (m){
+        const qty = (m[3].trim().match(/^\d+/) || [,""])[1] || "";
+        return [
+          `${m[1]} ${m[2].trim()}`,
+          m[3].trim(),
+          `${qty} ${m[4].trim()}`.trim()
+        ];
+      }
+      return [line];
+    });
+
+    function mergeTwoLineAmounts(lines){
+      const dateStartRe = /^\s*(\d{2}[./]\d{2}[./](?:\d{2}|\d{4})|\d{4}-\d{2}-\d{2})\b/;
+      const moneyHintRe = /(?:\()?-?\d{1,3}(?:[’'\s]\d{3})*(?:[.,]\d{2})(?:\))?/;
+
+      const out = [];
+      for (let i=0; i<lines.length; i++){
+        const cur = String(lines[i] || "").trim();
+        if (!cur) continue;
+
+        const curHasDate = dateStartRe.test(cur);
+        const curHasMoney = moneyHintRe.test(cur);
+
+        if (curHasDate && !curHasMoney){
+          let j = i+1;
+          while (j < lines.length && String(lines[j] || "").trim() === "") j++;
+          const next = j < lines.length ? String(lines[j] || "").trim() : "";
+          const nextHasDate = dateStartRe.test(next);
+          const nextHasMoney = moneyHintRe.test(next);
+
+          if (next && !nextHasDate && nextHasMoney){
+            out.push((cur + " " + next).replace(/\s+/g," ").trim());
+            i = j;
+            continue;
+          }
+        }
+        out.push(cur);
+      }
+      return out;
+    }
+
+    function mergeThreeLineGroup(lines){
+      const dateStartRe = /^\s*(\d{2}[./]\d{2}[./](?:\d{2}|\d{4})|\d{4}-\d{2}-\d{2})\b/;
+      const headerRe = /^\s*Date\s+VAT\s+Description\b/i;
+      const detailRe = /^\s*-?\d+\s*[xX]\s*-?\d+(?:[.,]\d{2})\s*$/;
+      const amountRe = /^\s*(\d{1,6})\s*([\-–]?\(?\d[\d’'\s.,]*[.,]\d{2}\)?)\s*$/;
+
+      const isJunk = (s) => {
+        const low = s.toLowerCase();
+        return (
+          headerRe.test(s) ||
+          low.startsWith("voucher") ||
+          low.startsWith("ubs ") ||
+          low.startsWith("konto-") ||
+          low.startsWith("iban") ||
+          low.startsWith("bic") ||
+          low.startsWith("ust-") ||
+          low.startsWith("essendi") ||
+          low.includes("management switzerland") ||
+          low.includes("ibis zurich messe airport") ||
+          low.includes("heidi abel-weg") ||
+          low.includes("ch-8050") ||
+          low.includes("page(s)") ||
+          low.includes("copy of invoice") ||
+          low.includes("invoice no.") ||
+          low.includes("arrival") ||
+          low.includes("departure") ||
+          low.includes("guest name") ||
+          low.includes("reservation") ||
+          low.includes("membership") ||
+          low.includes("reference")
+        );
+      };
+
+      const out = [];
+      for (let i=0; i<lines.length; i++){
+        const cur = String(lines[i] || "").trim();
+        if (!cur) continue;
+        if (isJunk(cur)) continue;
+
+        if (cur.includes("|")){
+          out.push(cur);
+          continue;
+        }
+
+        if (dateStartRe.test(cur)){
+          const mm = cur.match(dateStartRe);
+          const date = mm ? mm[1] : "";
+          const desc = cur.replace(dateStartRe, "").trim();
+
+          let j = i+1;
+          while (j < lines.length && String(lines[j] || "").trim() === "") j++;
+          const l1 = j < lines.length ? String(lines[j] || "").trim() : "";
+
+          let k = j+1;
+          while (k < lines.length && String(lines[k] || "").trim() === "") k++;
+          const l2 = k < lines.length ? String(lines[k] || "").trim() : "";
+
+          const hasDetail = l1 && !dateStartRe.test(l1) && detailRe.test(l1);
+          const amtLine = hasDetail ? l2 : l1;
+
+          let amtMatch = amtLine ? amtLine.match(amountRe) : null;
+          if (!amtMatch && amtLine){
+            const m2 = amtLine.match(/^\s*(\d{1,6})\s*([\-–]\d[\d’'\s.,]*[.,]\d{2})\s*$/);
+            if (m2) amtMatch = m2;
+          }
+
+          if (amtMatch){
+            const qty = amtMatch[1];
+            const amount = amtMatch[2].trim();
+            const fullDesc = hasDetail ? (desc ? (desc + " __NL__ " + l1) : l1) : desc;
+            out.push(`${date} | ${fullDesc} | ${qty} |  | ${amount} | `);
+            i = hasDetail ? k : j;
+            continue;
+          }
+        }
+
+        out.push(cur);
+      }
+      return out;
+    }
+
+    if (mode === "twoLine" || mode === "detailLine"){
+      const merged = (mode === "twoLine")
+        ? mergeTwoLineAmounts(rawLines)
+        : mergeThreeLineGroup(rawLines);
+
+      // Keep header/address area (everything above the table header),
+      // then append merged pipe-lines so BOTH address + positions work.
+      const headerRe = /^\s*Date\s+VAT\s+Description\b/i;
+      let headerIdx = rawLines.findIndex(l => headerRe.test(String(l||"").trim()));
+      if (headerIdx < 0) headerIdx = rawLines.findIndex(l => /^\s*Date\s+VAT\b/i.test(String(l||"").trim()));
+      const prefix = headerIdx >= 0 ? rawLines.slice(0, headerIdx) : rawLines.slice(0);
+
+      return normalizeText(prefix.join("\n") + "\n" + merged.join("\n"));
+    }
+    return normalizeText(text);
   }
 
   async function ensurePdfJsReady(){
@@ -750,7 +948,7 @@ CH-8050`;
       { key:"desc",   left:(xDesc + xDate)/2, right:(xQty + xDesc)/2 },
       { key:"qty",    left:(xQty + xDesc)/2,  right:(xUnit + xQty)/2 },
       { key:"unit",   left:(xUnit + xQty)/2,  right:(xDebit + xUnit)/2 },
-      { key:"debit",  left:(xDebit + xUnit)/2,right:(xCredit + xDebit)/2 },
+      { key:"debit",  left:(xDebit + xUnit)/2, right:(xCredit + xDebit)/2 },
       { key:"credit", left:(xCredit + xDebit)/2, right:Infinity },
     ];
 
@@ -842,21 +1040,14 @@ CH-8050`;
   function applyDescVatOnEdit(i){
     const it = state.items[i];
     if (!it) return;
-    // If it's a credit/payment line, existing rules win
     applyAutoVatRules(it);
     if (shouldDisableVatByRule(it)){
       it.vatEnabled = false;
       it.vatRate = 0;
     } else {
-      // If it was disabled due to old desc but now not, keep enabled
-      if (it.vatEnabled === false && (toNumber(it.credit) === 0)) {
-        it.vatEnabled = true;
-      }
-      // ensure mapping applies if any
+      if (it.vatEnabled === false && (toNumber(it.credit) === 0)) it.vatEnabled = true;
       const mapped = getMappedVatForDesc(it.desc || "");
-      if (mapped !== null && mapped !== undefined){
-        it.vatRate = mapped;
-      }
+      if (mapped !== null && mapped !== undefined) it.vatRate = mapped;
     }
   }
 
@@ -877,7 +1068,6 @@ CH-8050`;
 
     if (k === "desc"){
       applyDescVatOnEdit(i);
-      // rerender to reflect changed VAT in input if needed
       renderItems();
       return;
     }
@@ -885,7 +1075,6 @@ CH-8050`;
     recalc();
   });
 
-  // Format numeric inputs on blur (QTY bleibt ohne Dezimalstellen)
   tbody.addEventListener("blur", (e) => {
     const el = e.target;
     if (!el || !el.dataset || el.dataset.i === undefined) return;
@@ -1014,6 +1203,7 @@ CH-8050`;
   function syncPrintable(totalDebit, totalCredit, balance){
     setText("p_invoiceTitle", getInvoiceTitle());
     setText("p_invoiceNo", v("invoiceNo") || "—");
+    setText("p_invoiceTitle", v("invoiceType") || "INVOICE");
     setText("p_invoiceDate", isoToDmy(v("invoiceDate")) || "—");
     setText("p_arrival", isoToDmy(v("arrival")) || "—");
     setText("p_departure", isoToDmy(v("departure")) || "—");
@@ -1038,7 +1228,7 @@ CH-8050`;
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td class="mono">${escapeHtml(isoToDmy(it.date ?? ""))}</td>
-        <td>${escapeHtml(it.desc ?? "")}</td>
+        <td style="white-space:pre-wrap">${escapeHtml(it.desc ?? "")}</td>
         <td class="num mono">${(it.qty === "" ? "" : displayInt(it.qty))}</td>
         <td class="num mono">${(it.unit === "" ? "" : toNumber(it.unit).toFixed(2))}</td>
         <td class="num mono">${(it.debit === "" ? "" : fmt(toNumber(it.debit)))}</td>
@@ -1056,7 +1246,6 @@ CH-8050`;
     setText("p_legalRight", FIXED_FOOTER_RIGHT);
   }
 
-  // Sync printable when header fields change
   ["invoiceType","sellerName","sellerContact","sellerExtra","sellerAddressBlock","buyerAddressBlock","reference","invoiceNo","invoiceDate","currency","arrival","departure","roomReservation"]
     .forEach(id => document.getElementById(id)?.addEventListener("input", () => recalc()));
 
@@ -1118,9 +1307,7 @@ CH-8050`;
     }
   });
 
-  // =============================================================
-  // PARSER (aus v3, unverändert/funktionierend) + Auto-VAT Call
-  // =============================================================
+  // PARSER (wie vorher)
   function parseInvoiceFromText(text){
     const t = (text || "");
     const upper = t.toUpperCase();
@@ -1145,9 +1332,11 @@ CH-8050`;
       return m ? (m[1] ?? "").trim() : "";
     };
 
-    const normDate = (d) => d.replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
+    const normDate = (d) => String(d||"").replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
 
-    out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) || pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
+    out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) ||
+                    pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
+
     out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
     out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
@@ -1198,16 +1387,18 @@ CH-8050`;
     function cleanupBuyerBlock(block){
       const bl = String(block || "").split("\n").map(x=>x.trim()).filter(Boolean);
       const filtered = bl.filter(l =>
-        !/^invoice\b/i.test(l) &&
-        !/^copy\s+of\s+invoice\b/i.test(l)
+        !/^\s*invoice\b/i.test(l) &&
+        !/^\s*copy\s+of\s+invoice\b/i.test(l) &&
+        !/^\s*information[-\s]?invoice\b/i.test(l) &&
+        !/^\s*proforma[-\s]?invoice\b/i.test(l)
       );
       return filtered.join("\n").trim();
     }
 
+    // Kunde-Adresse: alles was direkt über dem Titel steht (INVOICE / COPY OF INVOICE / INFORMATION-INVOICE / ...)
     (function parseBuyerAddressFromInvoiceHeading(){
-      const isInvoiceLine = (s) => /^\s*(COPY\s+OF\s+)?INVOICE\s*$/i.test(String(s||"").trim());
-
-      const idx = rawLines.findIndex(isInvoiceLine);
+      const isTitleLine = (s) => /^\s*(COPY\s+OF\s+)?(INVOICE|INFORMATION[-\s]?INVOICE|PROFORMA[-\s]?INVOICE)\s*$/i.test(String(s||"").trim());
+      const idx = rawLines.findIndex(isTitleLine);
       if (idx < 0) return;
 
       const collected = [];
@@ -1216,13 +1407,15 @@ CH-8050`;
 
       while (i >= 0 && rawLines[i].trim() === "") i--;
 
-      while (i >= 0 && guard < 12){
+      while (i >= 0 && guard < 20){
         const line = rawLines[i];
         if (line.trim() === "") break;
 
         const low = line.toLowerCase();
+        // Stop wenn wir in den Hotel/Seller-Block rutschen (ibis/Adresse)
         if (low.includes("ibis") && low.includes("zurich")) break;
         if (low.includes("heidi") && low.includes("abel-weg")) break;
+        if (low.includes("essendi") && low.includes("switzerland")) break;
 
         collected.unshift(line.trim());
         i--;
@@ -1233,9 +1426,9 @@ CH-8050`;
       if (cleaned) out.buyerAddressBlock = cleaned;
     })();
 
+    // Fallback: manchmal gibt es "To" Block
     (function parseBuyerAddressFallback(){
       if (out.buyerAddressBlock) return;
-
       const idxTo = lines.findIndex(l => /^To$/i.test(l));
       if (idxTo >= 0){
         let end = Math.min(lines.length, idxTo + 12);
@@ -1246,6 +1439,8 @@ CH-8050`;
     })();
 
     const items = [];
+
+    // Pipe-Format: "date | desc | qty | unit | debit | credit"
     for (const line of lines){
       if (!line.includes("|")) continue;
       const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
@@ -1257,7 +1452,6 @@ CH-8050`;
       if (/^\d+(?:[.,]\d+)?%?$/.test(parts[1] || "")) idx = 2;
 
       const rest = parts.slice(idx).filter(p => p !== "");
-
       const moneyLike = (s) => looksLikeAmountToken(s);
 
       const restTokens = rest.slice();
@@ -1289,8 +1483,9 @@ CH-8050`;
         }
       }
 
-      const desc = restTokens.join(" ").trim();
-      if (!desc) continue;
+      const descRaw = restTokens.join(" ").trim();
+      if (!descRaw) continue;
+      const desc = descRaw.replace(/__NL__/g, "\n");
 
       let debitVal = "";
       let creditVal = "";
@@ -1341,6 +1536,7 @@ CH-8050`;
       items.push(item);
     }
 
+    // Fallback: "einzeilig" ohne Pipes, wenn Datum am Zeilenanfang + Betrag am Ende
     if (items.length === 0){
       const moneyRe = /^(?:\()?-?\d{1,3}(?:[’'\s]\d{3})*(?:[.,]\d{2})(?:\))?$/;
       const dateRe = /^\s*(\d{2}[./]\d{2}[./](?:\d{2}|\d{4}))\s+/;
@@ -1439,6 +1635,8 @@ CH-8050`;
     return hasAnything ? out : null;
   }
 
+  
+
   function applyParsed(d){
     if (!d) return;
     if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
@@ -1449,12 +1647,19 @@ CH-8050`;
     if (d.arrival) setV("arrival", dateToInputValue(d.arrival));
     if (d.departure) setV("departure", dateToInputValue(d.departure));
     if (d.roomReservation) setV("roomReservation", d.roomReservation);
-    if (Array.isArray(d.items)) state.items = d.items;
+    if (Array.isArray(d.items)){
+      state.items = d.items;
+      for (const it of state.items){ applyDescriptionVat(it); applyAutoVatRules(it); if (shouldDisableVatByRule(it)){ it.vatEnabled = false; it.vatRate = 0; } }
+    }
     renderItems();
   }
 
   const pdfFileInput = document.getElementById("pdfFile");
   const extractedTextEl = document.getElementById("extractedText");
+  // Bindings (sicherstellen, dass DOM vorhanden ist)
+  document.addEventListener("DOMContentLoaded", () => {
+    // (Bindings werden unten gesetzt; Listener hier ist nur ein Safety-Net)
+  });
 
   pdfFileInput.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];
@@ -1491,7 +1696,9 @@ CH-8050`;
       fullText = normalizeText(fullText);
       extractedTextEl.value = fullText;
 
-      const parsed = parseInvoiceFromText(fullText);
+      const mode = document.getElementById("importMode")?.value || "single";
+      const prepared = preprocessTextForImportMode(fullText, mode);
+      const parsed = parseInvoiceFromText(prepared);
       if (parsed){
         applyParsed(parsed);
         setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
@@ -1508,26 +1715,55 @@ CH-8050`;
   });
 
   function importFromDebugText(label){
-    const txt = (extractedTextEl.value || "").trim();
-    if (!txt){
-      setPill("importPill", `<b>Import:</b> kein Debug-Text`, "warn");
-      alert("Bitte den PDF-Text in das Debug-Feld einfügen und dann importieren.");
-      return;
-    }
-    const parsed = parseInvoiceFromText(normalizeText(txt));
-    if (parsed){
-      applyParsed(parsed);
-      setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} ✓`, "ok");
-    } else {
-      setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} – nichts erkannt`, "warn");
-      alert("Text ist da, aber Parser hat nichts erkannt.");
+    try{
+      console.log("importFromDebugText start", label);
+      const txt = (extractedTextEl.value || "").trim();
+      setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} …`, "");
+      const hintEl = document.getElementById("importHint");
+      if (hintEl) hintEl.textContent = "";
+
+      if (!txt){
+        setPill("importPill", `<b>Import:</b> kein Debug-Text`, "warn");
+        if (hintEl) hintEl.textContent = "Bitte erst den Text in das Debug-Feld einfügen (oder PDF importieren).";
+        return;
+      }
+
+      const mode = document.getElementById("importMode")?.value || "single";
+      console.log("import mode:", mode);
+
+      let prepared = txt;
+      try{
+        prepared = preprocessTextForImportMode(txt, mode);
+      } catch(ePrep){
+        console.error("preprocess failed", ePrep);
+      }
+
+      console.log("prepared preview:", prepared.slice(0, 400));
+
+      const parsed = parseInvoiceFromText(prepared);
+
+      if (parsed){
+        console.log("parsed ok. items:", parsed.items?.length);
+        applyParsed(parsed);
+        setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} ✓`, "ok");
+      } else {
+        console.warn("parsed null");
+        setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} – nichts erkannt`, "warn");
+        if (hintEl) hintEl.textContent = "Text vorhanden, aber Parser hat keine Positionen erkannt. Prüfe den Import-Modus (1/2/3 Zeilen) und ob die Tabelle im Text enthalten ist.";
+      }
+    } catch(err){
+      console.error("IMPORT ERROR", err);
+      const hintEl = document.getElementById("importHint");
+      if (hintEl) hintEl.textContent = "Import-Fehler: " + (err?.message || err);
+      setPill("importPill", "<b>Import:</b> Fehler (Konsole prüfen)", "warn");
     }
   }
 
-  // Entfernt: manualImportBtn oben
-  document.getElementById("importFromDebugBtn").addEventListener("click", () => importFromDebugText("Debug-Text"));
+  const importBtn = document.getElementById("importFromDebugBtn");
+  if (importBtn) importBtn.addEventListener("click", () => importFromDebugText("Debug-Text"));
 
-  document.getElementById("clearDebugBtn").addEventListener("click", () => {
+  const clearBtn = document.getElementById("clearDebugBtn");
+  if (clearBtn) clearBtn.addEventListener("click", () => {
     extractedTextEl.value = "";
     setPill("importPill", "<b>Import:</b> Debug-Text geleert", "");
   });
@@ -1541,11 +1777,76 @@ CH-8050`;
 
   extractedTextEl.addEventListener("paste", () => setTimeout(() => importFromDebugText("Text eingefügt"), 0));
 
-  (function init(){
+    // expose for onclick fallback
+  window.importFromDebugText = importFromDebugText;
+
+  
+  // === Robust global fallbacks for local-file / onclick ===
+  window.clearDebugText = function(){
+    try{
+      const ta = document.getElementById("extractedText");
+      if (ta) ta.value = "";
+      const pill = document.getElementById("importPill");
+      if (pill) pill.textContent = "Import: Debug-Text geleert";
+      console.log("cleared");
+    }catch(e){ console.error(e); }
+  };
+
+  window.importFromDebugText = function(label){
+    try{
+      console.log("importFromDebugText start", label);
+      const ta = document.getElementById("extractedText");
+      const txt = (ta ? ta.value : "").trim();
+
+      if (typeof setPill === "function"){
+        setPill("importPill", `<b>Import:</b> ${String(label||"Debug-Text")} …`, "");
+      } else {
+        const pill = document.getElementById("importPill");
+        if (pill) pill.textContent = "Import: " + (label||"Debug-Text") + " …";
+      }
+
+      const hintEl = document.getElementById("importHint");
+      if (hintEl) hintEl.textContent = "";
+
+      if (!txt){
+        if (typeof setPill === "function") setPill("importPill", "<b>Import:</b> kein Debug-Text", "warn");
+        if (hintEl) hintEl.textContent = "Bitte erst den Text in das Debug-Feld einfügen (oder PDF importieren).";
+        return;
+      }
+
+      const mode = document.getElementById("importMode")?.value || "single";
+      console.log("import mode:", mode);
+
+      let prepared = txt;
+      if (typeof preprocessTextForImportMode === "function"){
+        prepared = preprocessTextForImportMode(txt, mode);
+      }
+      console.log("prepared preview:", prepared.slice(0, 400));
+
+      const parsed = (typeof parseInvoiceFromText === "function") ? parseInvoiceFromText(prepared) : null;
+
+      if (parsed){
+        console.log("parsed ok. items:", parsed.items?.length);
+        if (typeof applyParsed === "function") applyParsed(parsed);
+        if (typeof setPill === "function") setPill("importPill", `<b>Import:</b> ${String(label||"Debug-Text")} ✓`, "ok");
+      } else {
+        console.warn("parsed null");
+        if (typeof setPill === "function") setPill("importPill", `<b>Import:</b> ${String(label||"Debug-Text")} – nichts erkannt`, "warn");
+        if (hintEl) hintEl.textContent = "Text vorhanden, aber Parser hat keine Positionen erkannt. Prüfe den Import-Modus (1/2/3 Zeilen) und ob die Tabelle im Text enthalten ist.";
+      }
+    } catch(err){
+      console.error("IMPORT ERROR", err);
+      const hintEl = document.getElementById("importHint");
+      if (hintEl) hintEl.textContent = "Import-Fehler: " + (err?.message || err);
+      if (typeof setPill === "function") setPill("importPill", "<b>Import:</b> Fehler (Konsole prüfen)", "warn");
+      else alert("Import-Fehler: " + (err?.message || err));
+    }
+  };
+
+(function init(){
     setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
     setPill("exportPill", "<b>Export:</b> bereit", "");
     renderItems();
-    // initial sync
     recalc();
   })();
 </script>
