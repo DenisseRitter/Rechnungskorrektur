@@ -640,6 +640,11 @@ CH-8050`;
       d.includes("voucher") ||
       d.includes("prepayment") ||
       d.includes("advance") ||
+
+      // ✅ Accor / ibis Folios: "DS-DIRECT SETTLEMENT" steht als CREDIT
+      d.includes("settlement") ||                // deckt "direct settlement" etc. ab
+      d.includes("ds-direct settlement") ||
+
       d.includes("amex") || d.includes("american express") ||
       d.includes("master") || d.includes("mastercard") ||
       d.includes("visa") ||
