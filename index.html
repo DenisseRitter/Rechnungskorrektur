@@ -1039,7 +1039,22 @@ CH-8050`;
     recalc();
   }
 
-  function applyDescVatOnEdit(i){
+  
+  // Update VAT UI fields for a single row WITHOUT re-rendering (keeps focus while typing)
+  function updateRowVatUI(i){
+    const it = state.items[i];
+    if (!it) return;
+    const vatInput = tbody.querySelector(`input[data-i="${i}"][data-k="vatRate"]`);
+    if (vatInput){
+      vatInput.value = (it.vatRate === "" || it.vatRate === null || it.vatRate === undefined)
+        ? ""
+        : toNumber(it.vatRate).toFixed(1);
+    }
+    const cb = tbody.querySelector(`input[type="checkbox"][data-i="${i}"][data-k="vatEnabled"]`);
+    if (cb) cb.checked = !!it.vatEnabled;
+  }
+
+function applyDescVatOnEdit(i){
     const it = state.items[i];
     if (!it) return;
     applyAutoVatRules(it);
@@ -1069,8 +1084,11 @@ CH-8050`;
     }
 
     if (k === "desc"){
+      // Don't re-render the whole table on every keystroke (would steal focus).
+      // Just apply VAT mapping + update the VAT fields in the same row.
       applyDescVatOnEdit(i);
-      renderItems();
+      updateRowVatUI(i);
+      recalc();
       return;
     }
 
