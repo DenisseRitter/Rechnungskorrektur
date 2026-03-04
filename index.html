@@ -39,6 +39,22 @@
     .muted{ color:var(--muted); }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .rowinput{ width:100%; border:1px solid #eee; border-radius:8px; padding:6px 8px; outline:none; background:#fff; font: inherit; }
+
+.cellflex{ display:flex; align-items:center; gap:6px; }
+.cellflex .rowinput{ flex:1; }
+.miniBtn{
+  border:1px solid var(--line);
+  background:var(--card);
+  border-radius:8px;
+  height:30px;
+  min-width:30px;
+  padding:0 8px;
+  cursor:pointer;
+  font-weight:800;
+  line-height:1;
+  user-select:none;
+}
+.miniBtn:active{ transform: translateY(1px); }
     .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
     .toggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
     .toggle input{ transform: scale(1.05); }
@@ -101,7 +117,11 @@
   <div class="toolbar">
     <button class="btn" id="clearDebugTopBtn" type="button" onclick="window.clearDebugText()">Debug-Text leeren</button>
     <input id="pdfFile" type="file" accept="application/pdf" style="display:none" />
-    <button class="btn" id="addRowBtn" type="button">+ Position</button>
+    
+<input id="jsonFile" type="file" accept="application/json" style="display:none" />
+<button class="btn" id="saveDraftBtn" type="button">Entwurf exportieren</button>
+<button class="btn" id="loadDraftBtn" type="button">Entwurf importieren</button>
+<button class="btn" id="addRowBtn" type="button">+ Position</button>
     <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
     <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
   </div>
@@ -630,7 +650,146 @@ CH-8050`;
   function setV(id, val){ document.getElementById(id).value = val; }
   function setText(id, val){ const el = document.getElementById(id); if (el) el.textContent = val; }
 
-  function isPaymentDesc(desc){
+  
+
+// ===== Entwurf Export/Import (JSON-Datei) =====
+function collectDraft(){
+  return {
+    v: 1,
+    savedAt: new Date().toISOString(),
+    fields: {
+      sellerName: v("sellerName"),
+      sellerContact: v("sellerContact"),
+      sellerExtra: v("sellerExtra"),
+      sellerAddressBlock: v("sellerAddressBlock"),
+
+      buyerAddressBlock: v("buyerAddressBlock"),
+      reference: v("reference"),
+
+      invoiceType: v("invoiceType"),
+      invoiceNo: v("invoiceNo"),
+      invoiceDate: v("invoiceDate"),
+
+      currency: v("currency"),
+      arrival: v("arrival"),
+      departure: v("departure"),
+      roomReservation: v("roomReservation"),
+
+      extractedText: (document.getElementById("extractedText")?.value || ""),
+      importMode: (document.getElementById("importMode")?.value || "single"),
+    },
+    items: Array.isArray(state.items) ? state.items : []
+  };
+}
+
+function applyDraft(d){
+  if (!d || typeof d !== "object") return;
+  const f = d.fields || {};
+
+  if (f.sellerName !== undefined) setV("sellerName", f.sellerName);
+  if (f.sellerContact !== undefined) setV("sellerContact", f.sellerContact);
+  if (f.sellerExtra !== undefined) setV("sellerExtra", f.sellerExtra);
+  if (f.sellerAddressBlock !== undefined) setV("sellerAddressBlock", f.sellerAddressBlock);
+
+  if (f.buyerAddressBlock !== undefined) setV("buyerAddressBlock", f.buyerAddressBlock);
+  if (f.reference !== undefined) setV("reference", f.reference);
+
+  if (f.invoiceType !== undefined) setV("invoiceType", f.invoiceType);
+  if (f.invoiceNo !== undefined) setV("invoiceNo", f.invoiceNo);
+  if (f.invoiceDate !== undefined) setV("invoiceDate", f.invoiceDate);
+
+  if (f.currency !== undefined) setV("currency", f.currency);
+  if (f.arrival !== undefined) setV("arrival", f.arrival);
+  if (f.departure !== undefined) setV("departure", f.departure);
+  if (f.roomReservation !== undefined) setV("roomReservation", f.roomReservation);
+
+  const extractedTextEl = document.getElementById("extractedText");
+  if (extractedTextEl && f.extractedText !== undefined) extractedTextEl.value = f.extractedText;
+  const importModeEl = document.getElementById("importMode");
+  if (importModeEl && f.importMode !== undefined) importModeEl.value = f.importMode;
+
+  if (Array.isArray(d.items)){
+    state.items = d.items;
+    for (const it of state.items){
+      applyDescriptionVat(it);
+      applyAutoVatRules(it);
+      if (shouldDisableVatByRule(it)){ it.vatEnabled = false; it.vatRate = 0; }
+    }
+  }
+  renderItems();
+  recalc();
+}
+
+function downloadDraftJson(){
+  // Wrapper, damit bestehende Aufrufe nicht kaputt gehen
+  return downloadDraftJsonWithPicker();
+}
+
+// Export als JSON-Datei (mit Ordnerwahl in Edge/Chrome via File System Access API, sonst Download-Fallback)
+async function downloadDraftJsonWithPicker(){
+  const draft = collectDraft();
+  const jsonText = JSON.stringify(draft, null, 2);
+
+  const invNo = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g, "_");
+  const date = (v("invoiceDate") || "").replace(/[^\d\-]+/g, "");
+  const filename = `Entwurf_${invNo}${date ? "_" + date : ""}.json`;
+
+  // Moderne Browser (Edge/Chrome): "Speichern unter…" Dialog inkl. Ordnerwahl
+  // Hinweis: Funktioniert nur in "secure context" (https/localhost). Bei file:// fällt es meist auf den Download zurück.
+  if (window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{
+          description: "JSON",
+          accept: { "application/json": [".json"] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(new Blob([jsonText], { type: "application/json" }));
+      await writable.close();
+
+      if (typeof setPill === "function") setPill("importPill", "<b>Entwurf:</b> gespeichert ✓", "ok");
+      return;
+    } catch (e){
+      // User abgebrochen oder nicht erlaubt -> Fallback
+      // console.warn(e);
+    }
+  }
+
+  // Fallback: klassischer Download (Browser entscheidet Download-Ordner / fragt je nach Einstellung)
+  try{
+    const blob = new Blob([jsonText], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    a.remove();
+
+    if (typeof setPill === "function") setPill("importPill", "<b>Entwurf:</b> JSON exportiert ✓", "ok");
+  } catch (e){
+    alert("Entwurf konnte nicht exportiert werden: " + (e?.message || e));
+  }
+}
+
+function importDraftJsonFile
+(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(String(reader.result || ""));
+      applyDraft(data);
+      if (typeof setPill === "function") setPill("importPill", "<b>Entwurf:</b> importiert ✓", "ok");
+    } catch (e){
+      alert("JSON ungültig: " + (e?.message || e));
+    }
+  };
+  reader.readAsText(file, "utf-8");
+}
+
+function isPaymentDesc(desc){
     const d = String(desc || "").toLowerCase();
     return (
       d.includes("deposit") ||
@@ -1023,7 +1182,12 @@ CH-8050`;
         <td><input class="rowinput" list="descOptions" value="${escapeHtml(it.desc ?? "")}" data-k="desc" data-i="${idx}" placeholder="Wählen oder tippen…"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayInt(it.qty))}" data-k="qty" data-i="${idx}" inputmode="numeric"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.unit))}" data-k="unit" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.debit))}" data-k="debit" data-i="${idx}" inputmode="decimal"></td>
+        <td class="num">
+          <div class="cellflex">
+            <input class="rowinput right mono" value="${escapeHtml(displayNum2(it.debit))}" data-k="debit" data-i="${idx}" inputmode="decimal">
+            <button class="miniBtn" type="button" title="Debit = QTY × UNIT" data-calcd="${idx}">×</button>
+          </div>
+        </td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.credit))}" data-k="credit" data-i="${idx}" inputmode="decimal"></td>
         <td class="num"><input class="rowinput right mono" value="${escapeHtml((it.vatRate === "" || it.vatRate === null || it.vatRate === undefined) ? "" : toNumber(it.vatRate).toFixed(1))}" data-k="vatRate" data-i="${idx}" inputmode="decimal"></td>
         <td class="toggle">
@@ -1123,17 +1287,45 @@ function applyDescVatOnEdit(i){
   });
 
   tbody.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-del]");
-    if (!btn) return;
-    const idx = parseInt(btn.dataset.del, 10);
-    state.items.splice(idx, 1);
+// Mini-Button: Debit aus QTY × UNIT berechnen
+const calcBtn = e.target.closest("button[data-calcd]");
+if (calcBtn){
+  const idx = parseInt(calcBtn.dataset.calcd, 10);
+  const it = state.items[idx];
+  if (it){
+    const q = (it.qty === "" ? 0 : toNumber(it.qty));
+    const u = (it.unit === "" ? 0 : toNumber(it.unit));
+    // Wenn eines leer/0 ist, lassen wir Debit leer (damit man nicht versehentlich 0 reinschreibt)
+    if (!q || !u) it.debit = "";
+    else it.debit = Math.round((q * u) * 100) / 100;
     renderItems();
+    recalc();
+  }
+  return;
+}
+
+const btn = e.target.closest("button[data-del]");
+if (!btn) return;
+const idx = parseInt(btn.dataset.del, 10);
+state.items.splice(idx, 1);
+renderItems();
   });
 
   document.getElementById("addRowBtn").addEventListener("click", () => {
     state.items.push({ date:"", desc:"", qty:"", unit:"", debit:"", credit:"", vatRate: 3.8, vatEnabled: true });
     renderItems();
   });
+
+
+// Entwurf Export/Import Buttons
+document.getElementById("saveDraftBtn")?.addEventListener("click", () => downloadDraftJson());
+document.getElementById("loadDraftBtn")?.addEventListener("click", () => document.getElementById("jsonFile")?.click());
+document.getElementById("jsonFile")?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (file) importDraftJsonFile(file);
+  e.target.value = ""; // reset
+});
+
 
   function recalc(){
     state.items = state.items.map(it => {
@@ -1872,4 +2064,5 @@ function applyDescVatOnEdit(i){
 </script>
 </body>
 </html>
+
 
