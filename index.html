@@ -1,2068 +1,841 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rechnungskorrektur – MwSt pro Position + PDF Import + PDF Export</title>
-  <style>
-    :root{ --ink:#111; --muted:#666; --line:#d9d9d9; --bg:#fafafa; --card:#fff; --accent:#1d4ed8; --ok:#0f766e; --warn:#b45309; }
-    *{ box-sizing:border-box; }
-    body{ margin:0; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--ink); background:var(--bg); }
-    header{ background:var(--card); border-bottom:1px solid var(--line); padding:14px 18px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    header h1{ font-size:14px; margin:0; font-weight:800; letter-spacing:.2px; }
-    .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-left:auto; }
-    .btn{ border:1px solid var(--line); background:var(--card); padding:8px 10px; border-radius:10px; cursor:pointer; font-weight:700; white-space:nowrap; user-select:none; }
-    .btn.primary{ background:var(--accent); color:#fff; border-color:transparent; }
-    .btn.success{ background:var(--ok); color:#fff; border-color:transparent; }
-    .btn.warn{ background:var(--warn); color:#fff; border-color:transparent; }
-    .btn:active{ transform: translateY(1px); }
-    .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
-    input[type="file"]{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
-    main{ padding:14px; max-width: 1100px; margin:0 auto; }
-    .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow: 0 1px 0 rgba(0,0,0,.03); overflow:hidden; }
-    .card .hd{ padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .card .hd strong{ font-size:13px; }
-    .card .bd{ padding:14px; }
-    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-    @media (max-width: 700px){ .grid2,.grid3{ grid-template-columns:1fr; } }
-    label{ display:block; font-size:11px; color:var(--muted); margin-bottom:6px; }
-    .field{ border:1px solid var(--line); border-radius:10px; padding:9px 10px; width:100%; background:#fff; outline:none; font: inherit; }
-    textarea.field{ min-height: 86px; resize: vertical; }
-    .field:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    table{ width:100%; border-collapse:collapse; font-size:12px; }
-    thead th{ text-align:left; font-size:11px; color:var(--muted); padding:8px 8px; border-bottom:1px solid var(--line); background:#fff; position:sticky; top:0; z-index:1; }
-    tbody td{ padding:6px 6px; border-bottom:1px solid #eee; vertical-align:top; }
-    tbody tr:hover{ background:#fcfcff; }
-    .num{ text-align:right; }
-    .right{ text-align:right; }
-    .muted{ color:var(--muted); }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .rowinput{ width:100%; border:1px solid #eee; border-radius:8px; padding:6px 8px; outline:none; background:#fff; font: inherit; }
-
-.cellflex{ display:flex; align-items:center; gap:6px; }
-.cellflex .rowinput{ flex:1; }
-.miniBtn{
-  border:1px solid var(--line);
-  background:var(--card);
-  border-radius:8px;
-  height:30px;
-  min-width:30px;
-  padding:0 8px;
-  cursor:pointer;
-  font-weight:800;
-  line-height:1;
-  user-select:none;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rooming Tools Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#f6f8fb;--card:#fff;--text:#1f2937;--muted:#6b7280;--line:#dbe2ea;
+  --nav:#0f172a;--nav2:#111827;--ok:#065f46;
 }
-.miniBtn:active{ transform: translateY(1px); }
-    .rowinput:focus{ border-color:#c7d2fe; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
-    .toggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
-    .toggle input{ transform: scale(1.05); }
-    .hint{ font-size:11px; color:var(--muted); }
-    .totals{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    .totals .box{ border:1px solid var(--line); border-radius:12px; padding:10px; background:#fff; }
-    .totals .box .k{ font-size:11px; color:var(--muted); }
-    .totals .box .v{ font-size:16px; font-weight:900; margin-top:4px; }
-    .statusBar{ border:1px solid #f0f0f0; border-radius:12px; padding:10px; background:#fff; display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin-top:12px; }
-    .statusPill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid #eee; border-radius:999px; font-size:12px; background:#fff; color:var(--muted); }
-    .statusPill.ok{ color:var(--ok); border-color:#d1fae5; }
-    .statusPill.warn{ color:var(--warn); border-color:#ffedd5; }
-    .statusPill b{ color:inherit; }
-    .invoicePaper{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; }
-    .invoiceHeader{ display:grid; grid-template-columns: 1fr 360px; gap:16px; align-items:start; border-bottom:1px solid #eee; padding-bottom:12px; margin-bottom:12px; }
-    @media (max-width: 900px){ .invoiceHeader{ grid-template-columns: 1fr; } }
-    .brandRow{ display:grid; grid-template-columns: 340px 1fr; gap:14px; align-items:start; }
-    @media (max-width: 700px){ .brandRow{ grid-template-columns: 1fr; } }
-    .logoBox{ width:340px; height:160px; border:1px solid #e6e6e6; border-radius:16px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#fff; box-shadow: 0 2px 10px rgba(0,0,0,.06); padding:12px; }
-    .logoBox img{ max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; display:block; }
-    .sellerHead{ border:1px solid #f0f0f0; border-radius:12px; padding:10px; background:#fff; white-space:pre-wrap; font-weight:700; }
-    .sellerHead .small{ font-weight:600; color:var(--muted); margin-top:6px; }
-    .meta{ display:grid; grid-template-columns: 1fr; gap:8px; }
-    .meta .kv{ display:flex; justify-content:space-between; gap:10px; border:1px solid #f0f0f0; border-radius:10px; padding:8px 10px; background:#fff; }
-    .meta .kv b{ font-weight:800; }
-    .meta .kv span{ color:var(--muted); }
-    .blocks{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:10px; }
-    @media (max-width: 700px){ .blocks{ grid-template-columns: 1fr; } }
-    .block{ border:1px solid #eee; border-radius:12px; padding:10px; background:#fff; min-height:90px; }
-    .block .t{ font-size:11px; color:var(--muted); margin-bottom:6px; }
-    .block .v{ font-weight:700; white-space:pre-wrap; }
-    .paperTable th, .paperTable td{ padding:6px 6px; border-bottom:1px solid #eee; }
-    .paperTable thead th{ position:static; top:auto; }
-    .paperFooter{ margin-top:12px; display:grid; grid-template-columns: 1fr 360px; gap:12px; align-items:start; }
-    @media (max-width: 900px){ .paperFooter{ grid-template-columns: 1fr; } }
-    .paperTotals{ border:1px solid #eee; border-radius:12px; padding:10px; }
-    .paperTotals .line{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; }
-    .paperTotals .line b{ font-weight:900; }
-    .paperVat{ border:1px solid #eee; border-radius:12px; padding:10px; }
-    .paperLegal{ margin-top:12px; border-top:1px solid #eee; padding-top:10px; font-size:11px; color:var(--muted); line-height:1.35; }
-    .paperLegalGrid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
-    .paperLegalCol{ white-space:pre-wrap; }
-    .paperLegalCol.right{ text-align:right; white-space:pre-wrap; }
-    @media (max-width: 650px){ .paperLegalGrid{ grid-template-columns: 1fr; } .paperLegalCol.right{ text-align:left; } }
-    details summary{ cursor:pointer; font-weight:800; }
-    @media print{
-      body{ background:#fff; }
-      header, .noPrint{ display:none !important; }
-      main{ display:block; padding:0; margin:0; max-width:none; }
-      .card{ border:none; box-shadow:none; }
-      .invoicePaper{ border:none; border-radius:0; padding:0; }
-      @page{ size:A4; margin:12mm; }
-      .logoBox{ box-shadow:none; }
-    }
-  </style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.app{display:grid;grid-template-columns:270px 1fr;min-height:100vh}
+.sidebar{background:linear-gradient(180deg,var(--nav),var(--nav2));color:#fff;padding:22px}
+.brand{font-size:22px;font-weight:700;margin-bottom:8px}
+.sub{font-size:13px;color:#cbd5e1;line-height:1.4;margin-bottom:22px}
+.navbtn{
+  width:100%;text-align:left;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);
+  color:#fff;padding:12px 14px;border-radius:14px;margin-bottom:10px;cursor:pointer;font-size:14px
+}
+.navbtn.active{background:#fff;color:#111827;font-weight:700}
+.main{padding:22px}
+.page{display:none}
+.page.active{display:block}
+h1{margin:0 0 8px;font-size:28px}
+.desc{margin:0 0 18px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 8px 24px rgba(15,23,42,.06);margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+input,select,button,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;font-size:14px;box-sizing:border-box;background:#fff}
+textarea{min-height:280px;resize:vertical}
+button{cursor:pointer;font-weight:700;background:#111827;color:#fff}
+button.secondary{background:#fff;color:#111827}
+button.green{background:var(--ok)}
+button.danger{background:#b91c1c}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row button{width:auto}
+.table-wrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;border-bottom:1px solid #eef2f7;text-align:left;font-size:14px}
+th{background:#f8fafc;position:sticky;top:0}
+th:nth-child(1), td:nth-child(1){width:60px}
+th:nth-child(6), td:nth-child(6){width:160px}
+.note{background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:10px 12px;border-radius:12px;font-size:13px}
+.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;padding:10px 12px;border-radius:12px;font-size:13px}
+.log{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;padding:12px;border-radius:12px;font-family:ui-monospace,monospace;font-size:12px;min-height:90px}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.stat{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:12px}
+.stat b{display:block;font-size:22px}
+.small{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;padding:4px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:700;margin-right:6px;margin-bottom:6px}
+td input, td select{padding:7px 8px;font-size:13px}
+.coming{font-size:15px;line-height:1.6;color:#334155}
+.action-cell button{padding:7px 10px;font-size:12px;border-radius:10px;width:auto}
+@media (max-width:980px){.app{grid-template-columns:1fr}.sidebar{padding-bottom:10px}.grid,.stats{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-<header>
-  <h1>Rechnungskorrektur: MwSt pro Position • PDF Import • Druck/PDF Export</h1>
-  <div class="toolbar">
-    <button class="btn" id="clearDebugTopBtn" type="button" onclick="window.clearDebugText()">Debug-Text leeren</button>
-    <input id="pdfFile" type="file" accept="application/pdf" style="display:none" />
-    
-<input id="jsonFile" type="file" accept="application/json" style="display:none" />
-<button class="btn" id="saveDraftBtn" type="button">Entwurf exportieren</button>
-<button class="btn" id="loadDraftBtn" type="button">Entwurf importieren</button>
-<button class="btn" id="addRowBtn" type="button">+ Position</button>
-    <button class="btn" id="printBtn" type="button">Drucken / Als PDF speichern</button>
-    <button class="btn success" id="exportPdfBtn" type="button">Finale PDF exportieren</button>
-  </div>
-</header>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">Rooming Tools Hub</div>
+    <div class="sub">Getrennte Module pro Kunde. Das PMS-Standard-Template ist fest eingebunden und wird für alle Module automatisch geladen.</div>
+    <button class="navbtn active" data-page="page-viya">Viya Travel</button>
+    <button class="navbtn" data-page="page-eme">Emetravel</button>
+    <button class="navbtn" data-page="page-exa">Exa Travel</button>
+    <button class="navbtn" data-page="page-future">Weitere Kunden</button>
+  </aside>
 
-<main>
-  <section class="card">
-    <div class="hd">
-      <strong>Editor</strong>
-      <span class="hint">Fix: Kundenadresse aus Block vor „INVOICE“ / „COPY OF INVOICE“. Referenz = Guest Name. Credit-Zeilen: VAT aus.</span>
-    </div>
+  <main class="main">
 
-    <div class="bd">
-      <div class="grid3">
-        <div>
-          <label>Hotel / Firma</label>
-          <input id="sellerName" class="field" value="ibis Zurich Messe Airport" readonly />
-        </div>
-        <div>
-          <label>Kontakt / Web (Kopfzeile)</label>
-          <input id="sellerContact" class="field" value="+41 44 307 47 00 | H2980@accor.com | www.all.accor.com" readonly />
-        </div>
-        <div>
-          <label>Optionale Zusatzzeile</label>
-          <input id="sellerExtra" class="field" value="" readonly />
+    <section id="page-viya" class="page active">
+      <h1>Viya Travel</h1>
+      <p class="desc">Eigene Logik für das Viya-Format. Getrennt von Emetravel und Exa Travel.</p>
+
+      <div class="card">
+        <div class="note">
+          <b>Fixe PMS-Codes:</b> Double = <b>DBL</b>, Twin = <b>TWI</b>, Triple = <b>TRI</b>.<br>
+          Pro Zimmer wird die Zeile <b>1.Room / 2.Room / 3.Room ...</b> als Hauptzeile gelesen.
+          Der Room Type wird aus der nächsten passenden Zeile mit <b>Double / Twin / Triple / Single</b> gelesen.
         </div>
       </div>
 
-      <div style="height:10px;"></div>
-
-      <div>
-        <label>Adresse Verkäufer (FIX)</label>
-        <textarea id="sellerAddressBlock" class="field" readonly>Heidi Abel-Weg 5 CH-8050 ZURICH Switzerland</textarea>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="grid2">
-        <div>
-          <label>Adresse Kunde (ein Feld)</label>
-          <textarea id="buyerAddressBlock" class="field" placeholder="Wird beim Import automatisch befüllt…"></textarea>
-        </div>
-        <div>
-          <label>Referenz / Gastname</label>
-          <input id="reference" class="field" value="" />
-        </div>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="grid3">
-        <div>
-          <label>Rechnungsart</label>
-          <select id="invoiceType" class="field">
-            <option value="INVOICE">Invoice</option>
-            <option value="PROFORMA-INVOICE">Proforma-Invoice</option>
-            <option value="INFORMATION-INVOICE">Information-Invoice</option>
-          </select>
-        </div>
-        <div>
-          <label>Invoice No.</label>
-          <input id="invoiceNo" class="field" value="" />
-        </div>
-        <div>
-          <label>Rechnungsdatum</label>
-          <input id="invoiceDate" class="field" type="date" value="" />
-        </div>
-      </div>
-
-      <div style="height:10px;"></div>
-
-      <div class="grid3">
-        <div>
-          <label>Währung</label>
-          <input id="currency" class="field" value="CHF" />
-        </div>
-        <div>
-          <label>Anreise</label>
-          <input id="arrival" class="field" type="date" value="" />
-        </div>
-        <div>
-          <label>Abreise</label>
-          <input id="departure" class="field" type="date" value="" />
-        </div>
-      </div>
-
-      <div style="height:10px;"></div>
-
-      <div class="grid3">
-        <div>
-          <label>Zimmer / Reservation</label>
-          <input id="roomReservation" class="field" value="" />
-        </div>
-        <div></div>
-        <div></div>
-      </div>
-
-      <div class="statusBar">
-        <span class="statusPill" id="importPill"><b>Import:</b> —</span>
-        <span class="statusPill" id="workerPill"><b>PDF.js:</b> —</span>
-        <span class="statusPill" id="exportPill"><b>Export:</b> —</span>
-        <span class="hint" id="importHint">Tipp: Für Gruppenrechnungen (2-Zeilen-Positionen) im Debug-Feld den Modus unten umstellen.</span>
-      </div>
-
-      <div style="height:14px;"></div>
-
-      <div class="card" style="border-radius:12px;">
-        <div class="hd">
-          <strong>Positionen</strong>
-          <span class="hint">Credit-Zeilen: MwSt? automatisch deaktiviert (Checkbox aus).</span>
-        </div>
-        <div class="bd" style="padding:0;">
-          <div style="max-height:340px; overflow:auto;">
-            <table id="itemsTable">
-              <thead>
-                <tr>
-                  <th style="width:110px;">Datum</th>
-                  <th>Beschreibung</th>
-                  <th class="num" style="width:70px;">QTY</th>
-                  <th class="num" style="width:90px;">Unit</th>
-                  <th class="num" style="width:110px;">Debit</th>
-                  <th class="num" style="width:110px;">Credit</th>
-                  <th class="num" style="width:92px;">MwSt %</th>
-                  <th style="width:86px;">MwSt?</th>
-                  <th style="width:70px;"></th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+      <div class="card">
+        <div class="grid">
+          <div><label>Viya Rooming List</label><input id="viyaFile" type="file" accept=".xlsx,.xls"></div>
+          <div><label>PMS Template</label><input value="Standard Template aktiv" disabled></div>
+          <div><label>Anreise</label><input id="viyaArrival" type="date"></div>
+          <div><label>Abreise</label><input id="viyaDeparture" type="date"></div>
+          <div>
+            <label>Single exportieren als</label>
+            <select id="viyaSingleMode"><option value="DBL">DBL</option><option value="TWI">TWI</option></select>
           </div>
-  <datalist id="descList">
-    <option value="Room Hire"></option>
-    <option value="Accommodation"></option>
-    <option value="Manual Accomodation"></option>
-    <option value="Manual Accommodation"></option>
-    <option value="Parking"></option>
-    <option value="City Tax"></option>
-    <option value="Breakfast"></option>
-    <option value="Twin room"></option>
-    <option value="Double room"></option>
-    <option value="Single room"></option>
-    <option value="Triple room"></option>
-    <option value="FOC"></option>
-  </datalist>
-
+          <div>
+            <label>Payment</label>
+            <select id="viyaPayment"><option value="CA">CA</option><option value="CC">CC</option><option value="BT">BT</option></select>
+          </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="row">
+          <button id="viyaAnalyzeBtn">Viya analysieren</button>
+          <button id="viyaExportBtn" class="green">Mit Standard-Template exportieren</button>
+          <button id="viyaPickTemplateBtn" class="secondary">Template-Datei wählen</button>
+          <button id="viyaExportBlankBtn" class="secondary">Ohne Template exportieren</button>
         </div>
       </div>
 
-      <datalist id="descOptions">
-        <option value="Room Hire"></option>
-        <option value="Accommodation"></option>
-        <option value="Manual Accomodation"></option>
-        <option value="Parking"></option>
-        <option value="City Tax"></option>
-        <option value="Breakfast"></option>
-        <option value="Twin room"></option>
-        <option value="Double room"></option>
-        <option value="Single room"></option>
-        <option value="Triple room"></option>
-        <option value="FOC"></option>
-      </datalist>
-
-      <div style="height:14px;"></div>
-
-      <div class="totals">
-        <div class="box"><div class="k">Total Debit</div><div class="v mono" id="totalDebit">0.00</div></div>
-        <div class="box"><div class="k">Total Credit</div><div class="v mono" id="totalCredit">0.00</div></div>
-        <div class="box"><div class="k">Saldo (Debit − Credit)</div><div class="v mono" id="balance">0.00</div></div>
-        <div class="box"><div class="k">Endbetrag / Total</div><div class="v mono" id="grandTotal">0.00</div></div>
+      <div class="card">
+        <div class="stats">
+          <div class="stat"><b id="viyaStatRooms">0</b><span class="small">erkannte Zimmer</span></div>
+          <div class="stat"><b id="viyaStatDBL">0</b><span class="small">DBL</span></div>
+          <div class="stat"><b id="viyaStatTWI">0</b><span class="small">TWI</span></div>
+          <div class="stat"><b id="viyaStatTRI">0</b><span class="small">TRI</span></div>
+          <div class="stat"><b id="viyaStatAdults">0</b><span class="small">Adults gesamt</span></div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="ok" id="viyaSummary">Noch keine Datei analysiert.</div>
       </div>
 
-      <div style="height:14px;"></div>
-
-      <div class="card" style="border-radius:12px;">
-        <div class="hd">
-          <strong>MwSt-Aufschlüsselung (pro Satz)</strong>
-          <span class="hint">Steuerbasis je Satz = Summe steuerbarer Zeilen (Debit − Credit).</span>
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <button id="viyaAddRowBtn" class="secondary">Zeile hinzufügen</button>
         </div>
-        <div class="bd">
-          <table id="vatBreakdownTable">
+        <div class="table-wrap">
+          <table>
             <thead>
               <tr>
-                <th>MwSt %</th>
-                <th class="num">Netto</th>
-                <th class="num">MwSt</th>
-                <th class="num">Brutto</th>
+                <th>Line</th><th>Name</th><th>First Name</th><th>Arrival</th><th>Departure</th><th>Room Type</th><th>Adults</th><th>Payment</th><th>Action</th>
               </tr>
             </thead>
-            <tbody></tbody>
+            <tbody id="viyaTbody"></tbody>
           </table>
         </div>
       </div>
 
-      <div style="height:18px;"></div>
+      <div class="card"><div id="viyaLog" class="log"></div></div>
+    </section>
 
-      <div class="invoicePaper" id="invoicePaper">
-        <div class="invoiceHeader">
-          <div>
-            <div class="brandRow">
-              <div class="logoBox" title="Logo (lokal im Repo)">
-                <img id="logoImg"
-                     src="Logo_ibis_RGB.png"
-                     alt="Logo ibis"
-                     crossorigin="anonymous"
-                     referrerpolicy="no-referrer"
-                     onerror="this.style.display='none';document.getElementById('logoFallback').style.display='block';" />
-                <div id="logoFallback" class="muted" style="display:none;text-align:center;padding:8px;">
-                  ibis<br><span class="hint">Logo konnte nicht geladen werden</span>
-                </div>
-              </div>
+    <section id="page-eme" class="page">
+      <h1>Emetravel</h1>
+      <p class="desc">Eigene Logik für das Emetravel-Format. Getrennt von Viya und Exa Travel.</p>
 
-              <div class="sellerHead">
-                <div id="p_sellerHeadMain"></div>
-                <div class="small" id="p_sellerHeadContact"></div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div id="p_invoiceTitle" style="font-weight:900;font-size:16px;margin-bottom:6px;">INVOICE</div>
-            <div class="meta">
-              <div class="kv"><span>Invoice No.</span><b id="p_invoiceNo">—</b></div>
-              <div class="kv"><span>Date</span><b id="p_invoiceDate">—</b></div>
-              <div class="kv"><span>Arrival</span><b id="p_arrival">—</b></div>
-              <div class="kv"><span>Departure</span><b id="p_departure">—</b></div>
-              <div class="kv"><span>Room / Reservation</span><b id="p_roomRes">—</b></div>
-              <div class="kv"><span>Currency</span><b id="p_currency">—</b></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="blocks">
-          <div class="block"><div class="t">From</div><div class="v" id="p_seller"></div></div>
-          <div class="block"><div class="t">To</div><div class="v" id="p_buyer"></div></div>
-        </div>
-
-        <div class="block" style="margin-bottom:12px;">
-          <div class="t">Reference</div>
-          <div class="v" id="p_reference"></div>
-        </div>
-
-        <table class="paperTable">
-          <thead>
-            <tr>
-              <th style="width:90px;">Date</th>
-              <th>Description</th>
-              <th class="num" style="width:60px;">QTY</th>
-              <th class="num" style="width:90px;">Unit</th>
-              <th class="num" style="width:100px;">Debit</th>
-              <th class="num" style="width:100px;">Credit</th>
-              <th class="num" style="width:70px;">VAT%</th>
-            </tr>
-          </thead>
-          <tbody id="p_items"></tbody>
-        </table>
-
-        <div class="paperFooter">
-          <div class="paperVat">
-            <div style="font-weight:900;margin-bottom:6px;">VAT Breakdown</div>
-            <table style="width:100%; border-collapse:collapse; font-size:12px;">
-              <thead>
-                <tr>
-                  <th style="text-align:left;color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">VAT%</th>
-                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">Net</th>
-                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">VAT</th>
-                  <th class="num" style="color:var(--muted);font-size:11px;border-bottom:1px solid #eee;padding:6px 4px;">Gross</th>
-                </tr>
-              </thead>
-              <tbody id="p_vatRows"></tbody>
-            </table>
-          </div>
-
-          <div class="paperTotals">
-            <div style="font-weight:900;margin-bottom:6px;">Totals</div>
-            <div class="line"><span>Total Debit</span><b class="mono" id="p_totalDebit">—</b></div>
-            <div class="line"><span>Total Credit</span><b class="mono" id="p_totalCredit">—</b></div>
-            <div class="line" style="border-top:1px solid #eee;margin-top:6px;padding-top:8px;"><span>Balance</span><b class="mono" id="p_balance">—</b></div>
-          </div>
-        </div>
-
-        <div class="paperLegal">
-          <div class="paperLegalGrid">
-            <div class="paperLegalCol" id="p_legalLeft"></div>
-            <div class="paperLegalCol right" id="p_legalRight"></div>
-          </div>
+      <div class="card">
+        <div class="note">
+          Die Spalte <b>ROOMING</b> enthält nur in der ersten Zeile eines Zimmers einen Wert
+          (z. B. <b>TPL</b>, <b>TWIN</b>, <b>DBL + IFN</b>, <b>SGL</b>). Genau diese Zeile wird als Zimmer-Zeile genommen.
         </div>
       </div>
 
-      <div style="height:14px;"></div>
-
-      <details class="card" style="border-radius:12px;">
-        <summary class="hd"><strong>Import-Text (Debug) anzeigen</strong><span class="hint">Hier siehst du den aus dem PDF gelesenen Text (oder den eingefügten Fallback-Text).</span></summary>
-        <div class="bd">
-          <div class="grid3">
-            <div>
-              <label>Text-Import Modus</label>
-              <select id="importMode" class="field">
-                <option value="single">Folio Style 2</option>                <option value="detailLine">Folio Style 7</option>
-              </select>
-            </div>
-            <div class="hint" style="align-self:end;">
-              Bei <b>Folio Style 7</b>: Datum+Description + Detailzeile (z.B. "23 X 94.00") + Qty/Betrag werden zu 1 Position.
-            </div>
-            <div></div>
+      <div class="card">
+        <div class="grid">
+          <div><label>Emetravel Rooming List</label><input id="emeFile" type="file" accept=".xlsx,.xls"></div>
+          <div><label>PMS Template</label><input value="Standard Template aktiv" disabled></div>
+          <div><label>Anreise</label><input id="emeArrival" type="date"></div>
+          <div><label>Abreise</label><input id="emeDeparture" type="date"></div>
+          <div>
+            <label>Single exportieren als</label>
+            <select id="emeSingleMode"><option value="DBL">DBL</option><option value="TWI">TWI</option></select>
           </div>
-
-          <div style="height:10px;"></div>
-
-          <label>Ausgelesener / eingefügter Text</label>
-          <textarea id="extractedText" class="field mono" style="min-height:240px;" placeholder="Nach PDF-Import erscheint hier der Text … (oder hier einfügen)."></textarea>
-          <div class="noPrint" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn warn" id="importFromDebugBtn" type="button" onclick="window.importFromDebugText('Debug-Text')">Aus Debug-Text importieren</button>
-            <button class="btn" id="clearDebugBtn" type="button" onclick="window.clearDebugText()">Debug-Text leeren</button>
+          <div>
+            <label>Payment</label>
+            <select id="emePayment"><option value="CA">CA</option><option value="CC">CC</option><option value="BT">BT</option></select>
           </div>
         </div>
-      </details>
-    </div>
-  </section>
-</main>
+        <div style="height:12px"></div>
+        <div class="row">
+          <button id="emeAnalyzeBtn">Emetravel analysieren</button>
+          <button id="emeExportBtn" class="green">Mit Standard-Template exportieren</button>
+          <button id="emePickTemplateBtn" class="secondary">Template-Datei wählen</button>
+          <button id="emeExportBlankBtn" class="secondary">Ohne Template exportieren</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="stats">
+          <div class="stat"><b id="emeStatRooms">0</b><span class="small">erkannte Zimmer</span></div>
+          <div class="stat"><b id="emeStatDBL">0</b><span class="small">DBL</span></div>
+          <div class="stat"><b id="emeStatTWI">0</b><span class="small">TWI</span></div>
+          <div class="stat"><b id="emeStatTRI">0</b><span class="small">TRI</span></div>
+          <div class="stat"><b id="emeStatAdults">0</b><span class="small">Adults gesamt</span></div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="ok" id="emeSummary">Noch keine Datei analysiert.</div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <button id="emeAddRowBtn" class="secondary">Zeile hinzufügen</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Line</th><th>Name</th><th>First Name</th><th>Arrival</th><th>Departure</th><th>Room Type</th><th>Adults</th><th>Payment</th><th>Quelle</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="emeTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card"><div id="emeLog" class="log"></div></div>
+    </section>
+
+    <section id="page-exa" class="page">
+      <h1>Exa Travel</h1>
+      <p class="desc">Eigene Logik für Exa Travel E-Mails. Nicht mit Viya oder Emetravel kombiniert.</p>
+
+      <div class="card">
+        <div class="note">
+          <b>Exa Travel arbeitet per E-Mail-Text.</b><br>
+          Bitte den Mailinhalt hier einfügen. Das Tool erkennt:
+          <b>PAX / LAST NAME / NAME / ROOM</b> und erstellt daraus <b>1 Zeile pro Zimmer</b> für den PMS-Import.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid">
+          <div style="grid-column:1 / -1">
+            <label>Email-Inhalt / Roomingliste einfügen</label>
+            <textarea id="exaText" placeholder="Hier den Exa Travel E-Mail-Text einfügen..."></textarea>
+          </div>
+          <div><label>PMS Template</label><input value="Standard Template aktiv" disabled></div>
+          <div></div>
+          <div><label>Anreise</label><input id="exaArrival" type="date"></div>
+          <div><label>Abreise</label><input id="exaDeparture" type="date"></div>
+          <div>
+            <label>Single exportieren als</label>
+            <select id="exaSingleMode"><option value="DBL">DBL</option><option value="TWI">TWI</option></select>
+          </div>
+          <div>
+            <label>Payment</label>
+            <select id="exaPayment"><option value="CA">CA</option><option value="CC">CC</option><option value="BT">BT</option></select>
+          </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="row">
+          <button id="exaAnalyzeBtn">Exa Travel analysieren</button>
+          <button id="exaExportBtn" class="green">Mit Standard-Template exportieren</button>
+          <button id="exaPickTemplateBtn" class="secondary">Template-Datei wählen</button>
+          <button id="exaExportBlankBtn" class="secondary">Ohne Template exportieren</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="pill">DBL → DBL</span>
+        <span class="pill">TWIN → TWI</span>
+        <span class="pill">TPL / TPL C/MNR1 → TRI</span>
+        <span class="pill">SGL → frei wählbar</span>
+        <span class="pill">1 Zeile pro Zimmer</span>
+        <span class="pill">echtes Excel-Datum</span>
+      </div>
+
+      <div class="card">
+        <div class="stats">
+          <div class="stat"><b id="exaStatRooms">0</b><span class="small">erkannte Zimmer</span></div>
+          <div class="stat"><b id="exaStatDBL">0</b><span class="small">DBL</span></div>
+          <div class="stat"><b id="exaStatTWI">0</b><span class="small">TWI</span></div>
+          <div class="stat"><b id="exaStatTRI">0</b><span class="small">TRI</span></div>
+          <div class="stat"><b id="exaStatAdults">0</b><span class="small">Adults gesamt</span></div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="ok" id="exaSummary">Noch kein Email-Text analysiert.</div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <button id="exaAddRowBtn" class="secondary">Zeile hinzufügen</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Line</th><th>Name</th><th>First Name</th><th>Arrival</th><th>Departure</th><th>Room Type</th><th>Adults</th><th>Payment</th><th>Quelle</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="exaTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card"><div id="exaLog" class="log"></div></div>
+    </section>
+
+    <section id="page-future" class="page">
+      <h1>Weitere Kunden</h1>
+      <p class="desc">Neue Formate können als eigene Seite ergänzt werden, ohne bestehende Module zu verändern.</p>
+      <div class="card">
+        <div class="coming">
+          Vorgesehen für weitere Formate wie:
+          <div style="height:10px"></div>
+          <span class="pill">Bey Tours</span>
+          <span class="pill">Europamundo</span>
+          <span class="pill">Europe Incoming</span>
+          <span class="pill">Eurorutas</span>
+          <span class="pill">Panavision</span>
+          <div style="height:16px"></div>
+          Jedes neue Format bekommt seine eigene Seite, eigene Erkennung und eigenen Export.
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
 
 <script>
-  window.addEventListener("error", (e) => {
-    console.error("JS Error:", e?.message || e);
-    // Optional: show a small hint once
-    const pill = document.getElementById("importPill");
-    if (pill) pill.innerHTML = `<b>Import:</b> JavaScript-Fehler (Konsole prüfen)`;
+const DEFAULT_TEMPLATE_URL = "./Rooming_List_Final.xls";
+let templateArrayBuffer = null;
+let templateSourceName = "";
+
+function q(id){ return document.getElementById(id); }
+function clean(v){ return String(v ?? "").replace(/\s+/g," ").trim(); }
+function formatDateISO(y,m,d){ return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function formatDateEU(iso){
+  const s = clean(iso);
+  if(!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const [y,m,d] = s.split("-");
+  return `${d}.${m}.${y.slice(2)}`;
+}
+function parseDateFromAny(text){
+  const s = clean(text);
+  if(!s) return "";
+  let m = s.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+  if(m){
+    let day=+m[1], month=+m[2], year=+m[3];
+    if(year<100) year += 2000;
+    return formatDateISO(year,month,day);
+  }
+  m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return formatDateISO(+m[1],+m[2],+m[3]);
+  return "";
+}
+function isoToExcelSerial(iso){
+  const s = clean(iso);
+  if(!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y,m,d] = s.split("-").map(Number);
+  const utc = Date.UTC(y, m - 1, d);
+  return utc / 86400000 + 25569;
+}
+function setDateCell(ws, addr, iso){
+  const serial = isoToExcelSerial(iso);
+  if(serial === null){
+    ws[addr] = { t:"s", v: formatDateEU(iso) };
+  } else {
+    ws[addr] = { t:"n", v: serial, z:"dd.mm.yy" };
+  }
+}
+function setCell(ws, addr, value, type){ ws[addr] = { t:type, v:value }; }
+async function loadWorkbook(file){
+  const data = await file.arrayBuffer();
+  return XLSX.read(data,{type:"array", cellDates:true});
+}
+function escapeHtml(v){
+  return String(v ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
+}
+function writePmsSheet(ws, rows){
+  setCell(ws,"A1","Line","s");
+  setCell(ws,"B1","Name","s");
+  setCell(ws,"C1","First Name","s");
+  setCell(ws,"E1","Arrival","s");
+  setCell(ws,"F1","Departure","s");
+  setCell(ws,"G1","Room Type","s");
+  setCell(ws,"H1","Payment Method","s");
+  setCell(ws,"J1","Adult","s");
+  setCell(ws,"O1","Specials","s");
+  rows.forEach((row, idx)=>{
+    const r=idx+2;
+    setCell(ws,"A"+r,row.line,"n");
+    setCell(ws,"B"+r,row.name,"s");
+    setCell(ws,"C"+r,row.firstName,"s");
+    setDateCell(ws,"E"+r,row.arrival);
+    setDateCell(ws,"F"+r,row.departure);
+    setCell(ws,"G"+r,row.roomType,"s");
+    setCell(ws,"H"+r,row.payment,"s");
+    setCell(ws,"J"+r,Number(row.adult||0),"n");
+    if(row.specials) setCell(ws,"O"+r,row.specials,"s");
   });
-
-  const FIXED_FOOTER_LEFT =
-`Essendi Switzerland SA (ehem. AccorInvest)
-UBS SA
-Konto-Nr: 243-442422.05R
-IBAN: CH24 0024 3243 4424 2205 R
-BIC: UBSWCHZH80A
-USt-IdNr. CHE-106.003.397 MWST`;
-
-  const FIXED_FOOTER_RIGHT =
-`ESSENDI SWITZERLAND SA
-Management Switzerland
-ibis Zurich Messe Airport
-Heidi Abel-Weg 5
-CH-8050`;
-
-  const DESC_VAT_MAP = new Map([
-    ["room hire", 8.1],
-    ["parking", 8.1],
-    ["accommodation", 3.8],
-    ["accomodation", 3.8],
-    ["manual accomodation", 3.8],
-    ["manual accommodation", 3.8],
-    ["city tax", 3.8],
-    ["breakfast", 3.8],
-    ["twin room", 3.8],
-    ["double room", 3.8],
-    ["single room", 3.8],
-    ["triple room", 3.8],
-    ["foc", 3.8],
-  ]);
-
-  function normalizeDescKey(s){
-    return String(s || "").toLowerCase().trim().replace(/\s+/g," ");
-  }
-  function getMappedVatForDesc(desc){
-    const key = normalizeDescKey(desc);
-    if (!key) return null;
-    if (DESC_VAT_MAP.has(key)) return DESC_VAT_MAP.get(key);
-    for (const [k, rate] of DESC_VAT_MAP.entries()){
-      if (key.includes(k)) return rate;
-    }
-    return null;
-  }
-
-  const LIBS = {
-    pdfjs: [
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js",
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.js",
-      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.min.js",
-    ],
-    pdfjsWorker: [
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js",
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
-      "https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.min.js",
-    ],
-    html2canvas: [
-      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
-      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
-      "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js",
-    ],
-    jspdf: [
-      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
-      "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js",
-    ]
-  };
-
-  const loadedScripts = new Set();
-  function loadScriptOnce(url){
-    return new Promise((resolve, reject) => {
-      if (loadedScripts.has(url)) return resolve(true);
-      const s = document.createElement("script");
-      s.src = url;
-      s.async = true;
-      s.onload = () => { loadedScripts.add(url); resolve(true); };
-      s.onerror = () => reject(new Error("Script load failed: " + url));
-      document.head.appendChild(s);
-    });
-  }
-  async function loadAny(candidates){
-    for (const url of candidates){
-      try{ await loadScriptOnce(url); return url; }
-      catch (e){ console.warn(e); }
-    }
-    return "";
-  }
-
-  const state = { items: [] };
-
-  const DESCRIPTION_VAT = {
-    "Room Hire": 8.1,
-    "Accommodation": 3.8,
-    "Manual Accomodation": 3.8,
-    "Manual Accommodation": 3.8,
-    "Parking": 8.1,
-    "City Tax": 3.8,
-    "Breakfast": 3.8,
-    "Twin room": 3.8,
-    "Double room": 3.8,
-    "Single room": 3.8,
-    "Triple room": 3.8,
-    "FOC": 3.8,
-  };
-
-  function applyDescriptionVat(item){
-    const key = String(item?.desc || "").trim();
-    if (!key) return;
-    if (Object.prototype.hasOwnProperty.call(DESCRIPTION_VAT, key)){
-      item.vatRate = DESCRIPTION_VAT[key];
-      const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-      if (credit > 0) item.vatEnabled = false;
-    }
-  }
-
-
-  function toNumber(val){
-    if (val === null || val === undefined) return 0;
-    if (typeof val === "number") return isFinite(val) ? val : 0;
-    let s = String(val).trim();
-    if (!s) return 0;
-    s = s.replace(/\s/g,"").replace(/’/g,"").replace(/'/g,"");
-    const hasDot = s.includes(".");
-    const hasComma = s.includes(",");
-    if (hasDot && hasComma){
-      const lastDot = s.lastIndexOf(".");
-      const lastComma = s.lastIndexOf(",");
-      const decIsComma = lastComma > lastDot;
-      if (decIsComma) s = s.replace(/\./g,"").replace(",",".");
-      else s = s.replace(/,/g,"");
-    } else if (hasComma && !hasDot){
-      s = s.replace(",",".");
-    } else {
-      s = s.replace(/,/g,"");
-    }
-    const n = parseFloat(s);
-    return isFinite(n) ? n : 0;
-  }
-  function round2(n){ return Math.round(n*100)/100; }
-  function fmt(n){
-    const cur = document.getElementById("currency").value || "CHF";
-    return `${round2(n).toFixed(2)} ${cur}`;
-  }
-  function displayNum2(x){
-    if (x === "" || x === null || x === undefined) return "";
-    const n = toNumber(x);
-    return isFinite(n) ? round2(n).toFixed(2) : "";
-  }
-  function displayInt(x){
-    if (x === "" || x === null || x === undefined) return "";
-    const n = toNumber(x);
-    if (!isFinite(n)) return "";
-    return String(Math.round(n));
-  }
-
-  function escapeHtml(s){
-    return String(s ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
-  function setPill(id, text, kind){
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.classList.remove("ok","warn");
-    if (kind) el.classList.add(kind);
-    el.innerHTML = text;
-  }
-  function normalizeText(t){
-    return (t || "")
-      .replace(/\r/g,"")
-      .replace(/[ \t]+\n/g,"\n")
-      .replace(/\n{3,}/g,"\n\n")
-      .trim();
-  }
-
-  function dmyToIso(dmy){
-    const m = String(dmy||"").trim().match(/^(\d{2})[./](\d{2})[./](\d{2}|\d{4})$/);
-    if (!m) return "";
-    const dd = m[1], mm = m[2], yy = (m[3].length === 2 ? ("20"+m[3]) : m[3]);
-    return `${yy}-${mm}-${dd}`;
-  }
-  function isoToDmy(iso){
-    const m = String(iso||"").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return String(iso||"").trim();
-    return `${m[3]}.${m[2]}.${m[1]}`;
-  }
-  function dateToInputValue(val){
-    const s = String(val||"").trim();
-    if (!s) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    if (/^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(s)) return dmyToIso(s) || "";
-    return s;
-  }
-
-  function v(id){ return document.getElementById(id).value; }
-  function setV(id, val){ document.getElementById(id).value = val; }
-  function setText(id, val){ const el = document.getElementById(id); if (el) el.textContent = val; }
-
-  
-
-// ===== Entwurf Export/Import (JSON-Datei) =====
-function collectDraft(){
-  return {
-    v: 1,
-    savedAt: new Date().toISOString(),
-    fields: {
-      sellerName: v("sellerName"),
-      sellerContact: v("sellerContact"),
-      sellerExtra: v("sellerExtra"),
-      sellerAddressBlock: v("sellerAddressBlock"),
-
-      buyerAddressBlock: v("buyerAddressBlock"),
-      reference: v("reference"),
-
-      invoiceType: v("invoiceType"),
-      invoiceNo: v("invoiceNo"),
-      invoiceDate: v("invoiceDate"),
-
-      currency: v("currency"),
-      arrival: v("arrival"),
-      departure: v("departure"),
-      roomReservation: v("roomReservation"),
-
-      extractedText: (document.getElementById("extractedText")?.value || ""),
-      importMode: (document.getElementById("importMode")?.value || "single"),
-    },
-    items: Array.isArray(state.items) ? state.items : []
-  };
+  ws["!ref"]="A1:O"+(rows.length+2);
+}
+async function fetchTemplateBuffer(){
+  const res = await fetch(DEFAULT_TEMPLATE_URL);
+  if(!res.ok) throw new Error("Template konnte nicht geladen werden: " + DEFAULT_TEMPLATE_URL);
+  return await res.arrayBuffer();
+}
+function askTemplateFile(){
+  return new Promise((resolve, reject)=>{
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xls,.xlsx';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', async ()=>{
+      try{
+        const file = input.files && input.files[0];
+        if(!file){ reject(new Error('Template-Auswahl abgebrochen')); return; }
+        templateSourceName = file.name;
+        resolve(await file.arrayBuffer());
+      }catch(err){ reject(err); }
+      finally{ input.remove(); }
+    }, { once:true });
+    input.click();
+  });
 }
 
-function applyDraft(d){
-  if (!d || typeof d !== "object") return;
-  const f = d.fields || {};
-
-  if (f.sellerName !== undefined) setV("sellerName", f.sellerName);
-  if (f.sellerContact !== undefined) setV("sellerContact", f.sellerContact);
-  if (f.sellerExtra !== undefined) setV("sellerExtra", f.sellerExtra);
-  if (f.sellerAddressBlock !== undefined) setV("sellerAddressBlock", f.sellerAddressBlock);
-
-  if (f.buyerAddressBlock !== undefined) setV("buyerAddressBlock", f.buyerAddressBlock);
-  if (f.reference !== undefined) setV("reference", f.reference);
-
-  if (f.invoiceType !== undefined) setV("invoiceType", f.invoiceType);
-  if (f.invoiceNo !== undefined) setV("invoiceNo", f.invoiceNo);
-  if (f.invoiceDate !== undefined) setV("invoiceDate", f.invoiceDate);
-
-  if (f.currency !== undefined) setV("currency", f.currency);
-  if (f.arrival !== undefined) setV("arrival", f.arrival);
-  if (f.departure !== undefined) setV("departure", f.departure);
-  if (f.roomReservation !== undefined) setV("roomReservation", f.roomReservation);
-
-  const extractedTextEl = document.getElementById("extractedText");
-  if (extractedTextEl && f.extractedText !== undefined) extractedTextEl.value = f.extractedText;
-  const importModeEl = document.getElementById("importMode");
-  if (importModeEl && f.importMode !== undefined) importModeEl.value = f.importMode;
-
-  if (Array.isArray(d.items)){
-    state.items = d.items;
-    for (const it of state.items){
-      applyDescriptionVat(it);
-      applyAutoVatRules(it);
-      if (shouldDisableVatByRule(it)){ it.vatEnabled = false; it.vatRate = 0; }
-    }
-  }
-  renderItems();
-  recalc();
+async function pickTemplateManually(logFn){
+  templateArrayBuffer = await askTemplateFile();
+  if(logFn) logFn("Lokales Template geladen: " + templateSourceName);
+  return templateArrayBuffer;
 }
-
-function downloadDraftJson(){
-  // Wrapper, damit bestehende Aufrufe nicht kaputt gehen
-  return downloadDraftJsonWithPicker();
-}
-
-// Export als JSON-Datei (mit Ordnerwahl in Edge/Chrome via File System Access API, sonst Download-Fallback)
-async function downloadDraftJsonWithPicker(){
-  const draft = collectDraft();
-  const jsonText = JSON.stringify(draft, null, 2);
-
-  const invNo = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g, "_");
-  const date = (v("invoiceDate") || "").replace(/[^\d\-]+/g, "");
-  const filename = `Entwurf_${invNo}${date ? "_" + date : ""}.json`;
-
-  // Moderne Browser (Edge/Chrome): "Speichern unter…" Dialog inkl. Ordnerwahl
-  // Hinweis: Funktioniert nur in "secure context" (https/localhost). Bei file:// fällt es meist auf den Download zurück.
-  if (window.showSaveFilePicker){
-    try{
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{
-          description: "JSON",
-          accept: { "application/json": [".json"] }
-        }]
-      });
-      const writable = await handle.createWritable();
-      await writable.write(new Blob([jsonText], { type: "application/json" }));
-      await writable.close();
-
-      if (typeof setPill === "function") setPill("importPill", "<b>Entwurf:</b> gespeichert ✓", "ok");
-      return;
-    } catch (e){
-      // User abgebrochen oder nicht erlaubt -> Fallback
-      // console.warn(e);
-    }
-  }
-
-  // Fallback: klassischer Download (Browser entscheidet Download-Ordner / fragt je nach Einstellung)
+async function ensureTemplateBuffer(logFn){
+  if(templateArrayBuffer) return templateArrayBuffer;
   try{
-    const blob = new Blob([jsonText], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    URL.revokeObjectURL(a.href);
-    a.remove();
-
-    if (typeof setPill === "function") setPill("importPill", "<b>Entwurf:</b> JSON exportiert ✓", "ok");
-  } catch (e){
-    alert("Entwurf konnte nicht exportiert werden: " + (e?.message || e));
+    templateArrayBuffer = await fetchTemplateBuffer();
+    templateSourceName = DEFAULT_TEMPLATE_URL;
+    if(logFn) logFn("Standard Template geladen: " + DEFAULT_TEMPLATE_URL);
+    return templateArrayBuffer;
+  }catch(err){
+    if(location.protocol === 'file:'){
+      if(logFn) logFn("Fetch des Templates lokal blockiert. Bitte zuerst 'Template-Datei wählen' klicken.");
+      throw new Error("Bitte zuerst 'Template-Datei wählen' klicken und Rooming_List_Final.xls oder .xlsx auswählen.");
+    }
+    throw err;
   }
 }
-
-function importDraftJsonFile
-(file){
-  const reader = new FileReader();
-  reader.onload = () => {
-    try{
-      const data = JSON.parse(String(reader.result || ""));
-      applyDraft(data);
-      if (typeof setPill === "function") setPill("importPill", "<b>Entwurf:</b> importiert ✓", "ok");
-    } catch (e){
-      alert("JSON ungültig: " + (e?.message || e));
-    }
-  };
-  reader.readAsText(file, "utf-8");
+function getFreshTemplateWorkbook(){
+  if(!templateArrayBuffer) throw new Error('Template ist nicht geladen');
+  return XLSX.read(templateArrayBuffer.slice(0), {type:'array', cellDates:true});
 }
-
-function isPaymentDesc(desc){
-    const d = String(desc || "").toLowerCase();
-    return (
-      d.includes("deposit") ||
-      d.includes("transfer") ||
-      d.includes("payment") ||
-      d.includes("paid") ||
-      d.includes("voucher") ||
-      d.includes("prepayment") ||
-      d.includes("advance") ||
-
-      // ✅ Accor / ibis Folios: "DS-DIRECT SETTLEMENT" steht als CREDIT
-      d.includes("settlement") ||                // deckt "direct settlement" etc. ab
-      d.includes("ds-direct settlement") ||
-
-      d.includes("amex") || d.includes("american express") ||
-      d.includes("master") || d.includes("mastercard") ||
-      d.includes("visa") ||
-      d.includes("credit card") ||
-      d.includes("card")
-    );
-  }
-  function keepNegativeInDebit(desc){
-    const d = String(desc || "").toLowerCase();
-    return (
-      d.includes("manual accomodation") ||
-      d.includes("manual accommodation") ||
-      d.includes("accomodation") ||
-      d.includes("accommodation") ||
-      d.includes("city tax") ||
-      d.includes("city taxe")
-    );
-  }
-
-  function applyAutoVatRules(item){
-    const mapped = getMappedVatForDesc(item?.desc || "");
-    if (mapped !== null && mapped !== undefined){
-      item.vatRate = mapped;
-      const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-      if (credit > 0) item.vatEnabled = false;
-      return;
-    }
-    const d = String(item?.desc || "").toLowerCase();
-    const hit = d.includes("parking") || d.includes("room hire");
-    if (!hit) return;
-    item.vatRate = 8.1;
-    const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-    if (credit > 0) item.vatEnabled = false;
-  }
-
-  function shouldDisableVatByRule(item){
-    const credit = (item.credit === "" ? 0 : toNumber(item.credit));
-    if (credit > 0) return true;
-    const d = String(item.desc || "").toLowerCase();
-    if (d.includes("credit chf") || d.includes("credit")) return true;
-    if (isPaymentDesc(item.desc)) return true;
-    return false;
-  }
-
-  // NEW: 2-line preprocess option for debug import
-  function preprocessTextForImportMode(text, mode){
-    let rawLines = String(text || "").replace(/\r/g,"").split("\n");
-
-    // Normalize one-line packed format:
-    // "05.02.26 Manual Accomodation-1 X 97.50-97.50"
-    rawLines = rawLines.flatMap(line => {
-      const s = String(line || "").trim();
-      const m = s.match(/^(\d{2}[./]\d{2}[./]\d{2,4})\s+(.+?)-\s*(\d+\s*[xX]\s*-?\d+(?:[.,]\d{2}))-\s*([\-–]?\d[\d’'\s.,]*[.,]\d{2})\s*$/);
-      if (m){
-        const qty = (m[3].trim().match(/^\d+/) || [,""])[1] || "";
-        return [
-          `${m[1]} ${m[2].trim()}`,
-          m[3].trim(),
-          `${qty} ${m[4].trim()}`.trim()
-        ];
-      }
-      return [line];
+function downloadWithTemplate(rows, filename){
+  const wb = getFreshTemplateWorkbook();
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  writePmsSheet(ws, rows);
+  XLSX.writeFile(wb, filename);
+}
+function buildBlankWorkbook(rows, sheetName, filename){
+  const wb=XLSX.utils.book_new(), ws={};
+  writePmsSheet(ws, rows);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
+function bindTableInputs(tbodyId, list, updateFn){
+  q(tbodyId).querySelectorAll('input[data-i], select[data-i]').forEach(el=>{
+    el.addEventListener('input', e=>{
+      const i=Number(e.target.dataset.i), k=e.target.dataset.k;
+      list[i][k]=e.target.value;
+      updateFn();
     });
-
-    function mergeTwoLineAmounts(lines){
-      const dateStartRe = /^\s*(\d{2}[./]\d{2}[./](?:\d{2}|\d{4})|\d{4}-\d{2}-\d{2})\b/;
-      const moneyHintRe = /(?:\()?-?\d{1,3}(?:[’'\s]\d{3})*(?:[.,]\d{2})(?:\))?/;
-
-      const out = [];
-      for (let i=0; i<lines.length; i++){
-        const cur = String(lines[i] || "").trim();
-        if (!cur) continue;
-
-        const curHasDate = dateStartRe.test(cur);
-        const curHasMoney = moneyHintRe.test(cur);
-
-        if (curHasDate && !curHasMoney){
-          let j = i+1;
-          while (j < lines.length && String(lines[j] || "").trim() === "") j++;
-          const next = j < lines.length ? String(lines[j] || "").trim() : "";
-          const nextHasDate = dateStartRe.test(next);
-          const nextHasMoney = moneyHintRe.test(next);
-
-          if (next && !nextHasDate && nextHasMoney){
-            out.push((cur + " " + next).replace(/\s+/g," ").trim());
-            i = j;
-            continue;
-          }
-        }
-        out.push(cur);
-      }
-      return out;
-    }
-
-    function mergeThreeLineGroup(lines){
-      const dateStartRe = /^\s*(\d{2}[./]\d{2}[./](?:\d{2}|\d{4})|\d{4}-\d{2}-\d{2})\b/;
-      const headerRe = /^\s*Date\s+VAT\s+Description\b/i;
-      const detailRe = /^\s*-?\d+\s*[xX]\s*-?\d+(?:[.,]\d{2})\s*$/;
-      const amountRe = /^\s*(\d{1,6})\s*([\-–]?\(?\d[\d’'\s.,]*[.,]\d{2}\)?)\s*$/;
-
-      const isJunk = (s) => {
-        const low = s.toLowerCase();
-        return (
-          headerRe.test(s) ||
-          low.startsWith("voucher") ||
-          low.startsWith("ubs ") ||
-          low.startsWith("konto-") ||
-          low.startsWith("iban") ||
-          low.startsWith("bic") ||
-          low.startsWith("ust-") ||
-          low.startsWith("essendi") ||
-          low.includes("management switzerland") ||
-          low.includes("ibis zurich messe airport") ||
-          low.includes("heidi abel-weg") ||
-          low.includes("ch-8050") ||
-          low.includes("page(s)") ||
-          low.includes("copy of invoice") ||
-          low.includes("invoice no.") ||
-          low.includes("arrival") ||
-          low.includes("departure") ||
-          low.includes("guest name") ||
-          low.includes("reservation") ||
-          low.includes("membership") ||
-          low.includes("reference")
-        );
-      };
-
-      const out = [];
-      for (let i=0; i<lines.length; i++){
-        const cur = String(lines[i] || "").trim();
-        if (!cur) continue;
-        if (isJunk(cur)) continue;
-
-        if (cur.includes("|")){
-          out.push(cur);
-          continue;
-        }
-
-        if (dateStartRe.test(cur)){
-          const mm = cur.match(dateStartRe);
-          const date = mm ? mm[1] : "";
-          const desc = cur.replace(dateStartRe, "").trim();
-
-          let j = i+1;
-          while (j < lines.length && String(lines[j] || "").trim() === "") j++;
-          const l1 = j < lines.length ? String(lines[j] || "").trim() : "";
-
-          let k = j+1;
-          while (k < lines.length && String(lines[k] || "").trim() === "") k++;
-          const l2 = k < lines.length ? String(lines[k] || "").trim() : "";
-
-          const hasDetail = l1 && !dateStartRe.test(l1) && detailRe.test(l1);
-          const amtLine = hasDetail ? l2 : l1;
-
-          let amtMatch = amtLine ? amtLine.match(amountRe) : null;
-          if (!amtMatch && amtLine){
-            const m2 = amtLine.match(/^\s*(\d{1,6})\s*([\-–]\d[\d’'\s.,]*[.,]\d{2})\s*$/);
-            if (m2) amtMatch = m2;
-          }
-
-          if (amtMatch){
-            const qty = amtMatch[1];
-            const amount = amtMatch[2].trim();
-            const fullDesc = hasDetail ? (desc ? (desc + " __NL__ " + l1) : l1) : desc;
-            out.push(`${date} | ${fullDesc} | ${qty} |  | ${amount} | `);
-            i = hasDetail ? k : j;
-            continue;
-          }
-        }
-
-        out.push(cur);
-      }
-      return out;
-    }
-
-    if (mode === "twoLine" || mode === "detailLine"){
-      const merged = (mode === "twoLine")
-        ? mergeTwoLineAmounts(rawLines)
-        : mergeThreeLineGroup(rawLines);
-
-      // Keep header/address area (everything above the table header),
-      // then append merged pipe-lines so BOTH address + positions work.
-      const headerRe = /^\s*Date\s+VAT\s+Description\b/i;
-      let headerIdx = rawLines.findIndex(l => headerRe.test(String(l||"").trim()));
-      if (headerIdx < 0) headerIdx = rawLines.findIndex(l => /^\s*Date\s+VAT\b/i.test(String(l||"").trim()));
-      const prefix = headerIdx >= 0 ? rawLines.slice(0, headerIdx) : rawLines.slice(0);
-
-      return normalizeText(prefix.join("\n") + "\n" + merged.join("\n"));
-    }
-    return normalizeText(text);
-  }
-
-  async function ensurePdfJsReady(){
-    if (window.pdfjsLib) return true;
-    setPill("workerPill", "<b>PDF.js:</b> laden…", "");
-    const url = await loadAny(LIBS.pdfjs);
-    if (!url || !window.pdfjsLib){
-      setPill("workerPill", "<b>PDF.js:</b> blockiert – Text-Fallback nutzen", "warn");
-      return false;
-    }
-    const workerUrl = await loadAny(LIBS.pdfjsWorker);
-    try{
-      if (workerUrl && window.pdfjsLib?.GlobalWorkerOptions){
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-        setPill("workerPill", "<b>PDF.js:</b> geladen (Worker)", "ok");
-      } else {
-        setPill("workerPill", "<b>PDF.js:</b> geladen (ohne Worker)", "warn");
-      }
-    } catch (e){
-      console.warn("Worker set failed:", e);
-      setPill("workerPill", "<b>PDF.js:</b> geladen (Fallback)", "warn");
-    }
-    return true;
-  }
-
-  async function extractPageTextByLines(page){
-    const content = await page.getTextContent({ disableCombineTextItems: false });
-    const items = [];
-    const Y_TOL = 1.6;
-
-    for (const it of content.items){
-      const str = String(it.str ?? "").replace(/\s+/g, " ").trim();
-      if (!str) continue;
-      const tx = it.transform;
-      const x = tx[4];
-      const y = tx[5];
-      const yKey = Math.round(y / Y_TOL) * Y_TOL;
-      items.push({ x, y, yKey, str });
-    }
-
-    const rows = new Map();
-    for (const it of items){
-      if (!rows.has(it.yKey)) rows.set(it.yKey, []);
-      rows.get(it.yKey).push(it);
-    }
-
-    const yKeys = Array.from(rows.keys()).sort((a,b) => b - a);
-    const rowText = (yKey) => rows.get(yKey).slice().sort((a,b)=>a.x-b.x).map(o=>o.str).join(" ").trim();
-    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9%]+/g," ").replace(/\s+/g," ").trim();
-
-    let headerY = null;
-    for (const yKey of yKeys){
-      const tt = norm(rowText(yKey));
-      const hasDate  = tt.includes("date");
-      const hasDesc  = tt.includes("description");
-      const hasQty   = tt.includes("qty") || tt.includes("qty.");
-      const hasDebit = tt.includes("debit");
-      const hasCredit= tt.includes("credit");
-      if (hasDate && hasDesc && hasQty && hasDebit && hasCredit){ headerY = yKey; break; }
-    }
-
-    if (headerY === null){
-      const out = [];
-      for (const yKey of yKeys){
-        const line = rowText(yKey);
-        if (line) out.push(line);
-      }
-      return out.join("\n");
-    }
-
-    const headerItems = rows.get(headerY).slice().sort((a,b)=>a.x-b.x);
-
-    function findMinXContains(word){
-      const w = String(word).toLowerCase();
-      const hits = headerItems
-        .filter(o => String(o.str || "").toLowerCase().includes(w))
-        .map(o => o.x);
-      if (!hits.length) return null;
-      return Math.min(...hits);
-    }
-    function findMinXRegex(re){
-      const hits = headerItems
-        .filter(o => re.test(String(o.str || "").trim()))
-        .map(o => o.x);
-      if (!hits.length) return null;
-      return Math.min(...hits);
-    }
-
-    let xDate  = findMinXRegex(/\bDate\b/i) ?? 0;
-    let xDesc  = findMinXRegex(/\bDescription\b/i) ?? (xDate + 90);
-    let xQty   = findMinXRegex(/\bQty\.?\b/i) ?? (xDesc + 240);
-    let xUnit  = findMinXRegex(/\bUnit\b/i);
-    let xDebit = findMinXContains("debit");
-    let xCredit= findMinXContains("credit");
-
-    const ensureIncreasing = (vals) => {
-      for (let i=1;i<vals.length;i++){
-        if (vals[i] !== null && vals[i-1] !== null && vals[i] <= vals[i-1]){
-          vals[i] = vals[i-1] + 80;
-        }
-      }
-      return vals;
-    };
-
-    if (xDebit === null) xDebit = xQty + 80;
-    if (xCredit === null) xCredit = xDebit + 120;
-    if (xUnit === null) xUnit = (xQty + xDebit) / 2;
-
-    [xDate, xDesc, xQty, xUnit, xDebit, xCredit] = ensureIncreasing([xDate, xDesc, xQty, xUnit, xDebit, xCredit]);
-
-    const bounds = [
-      { key:"date",   left:-Infinity,          right:(xDesc + xDate)/2 },
-      { key:"desc",   left:(xDesc + xDate)/2, right:(xQty + xDesc)/2 },
-      { key:"qty",    left:(xQty + xDesc)/2,  right:(xUnit + xQty)/2 },
-      { key:"unit",   left:(xUnit + xQty)/2,  right:(xDebit + xUnit)/2 },
-      { key:"debit",  left:(xDebit + xUnit)/2, right:(xCredit + xDebit)/2 },
-      { key:"credit", left:(xCredit + xDebit)/2, right:Infinity },
-    ];
-
-    function bucketKey(x){
-      return bounds.find(b => x >= b.left && x < b.right)?.key || "desc";
-    }
-
-    const GLUE_GAP = 10;
-    function joinParts(parts){
-      parts.sort((a,b)=>a.x-b.x);
-      let out = "";
-      let lastX = null;
-
-      const isDigit = (c) => c >= "0" && c <= "9";
-      const startsNum = (s) => isDigit((s[0]||"")) || s[0] === "." || s[0] === "," || s[0] === ")" || s[0] === "%";
-      const endsNum = (s) => { const c = s[s.length-1] || ""; return isDigit(c) || c === "." || c === "," || c === "("; };
-
-      for (const p of parts){
-        if (!out){ out = p.str; lastX = p.x; continue; }
-        const gap = p.x - lastX;
-        const glueLikely = gap <= GLUE_GAP && endsNum(out) && startsNum(p.str);
-        out += glueLikely ? "" : " ";
-        out += p.str;
-        lastX = p.x;
-      }
-      return out.trim();
-    }
-
-    const outLines = [];
-    for (const yKey of yKeys){
-      if (yKey >= headerY) continue;
-      const row = rows.get(yKey).slice();
-
-      const buckets = { date:[], desc:[], qty:[], unit:[], debit:[], credit:[] };
-      for (const it of row){ buckets[bucketKey(it.x)].push(it); }
-
-      const date = joinParts(buckets.date);
-      const isDmy = /^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date);
-      const isIso = /^\d{4}-\d{2}-\d{2}$/.test(date);
-      if (!isDmy && !isIso) continue;
-
-      const desc   = joinParts(buckets.desc);
-      const qty    = joinParts(buckets.qty);
-      const unit   = joinParts(buckets.unit);
-      const debit  = joinParts(buckets.debit);
-      const credit = joinParts(buckets.credit);
-
-      outLines.push([date, desc, qty, unit, debit, credit].join(" | ").trim());
-    }
-
-    return outLines.join("\n");
-  }
-
-  async function ensureExportLibs(){
-    if (!window.html2canvas){ setPill("exportPill", "<b>Export:</b> html2canvas laden…", ""); await loadAny(LIBS.html2canvas); }
-    if (!window.jspdf){ setPill("exportPill", "<b>Export:</b> jsPDF laden…", ""); await loadAny(LIBS.jspdf); }
-    const ok = !!window.html2canvas && !!window.jspdf?.jsPDF;
-    setPill("exportPill", ok ? "<b>Export:</b> bereit" : "<b>Export:</b> blockiert (Drucken nutzen)", ok ? "ok" : "warn");
-    return ok;
-  }
-
-  const tbody = document.querySelector("#itemsTable tbody");
-
-  function renderItems(){
-    tbody.innerHTML = "";
-    state.items.forEach((it, idx) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><input class="rowinput mono" type="date" value="${escapeHtml(dateToInputValue(it.date ?? ""))}" data-k="date" data-i="${idx}"></td>
-        <td><input class="rowinput" list="descOptions" value="${escapeHtml(it.desc ?? "")}" data-k="desc" data-i="${idx}" placeholder="Wählen oder tippen…"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayInt(it.qty))}" data-k="qty" data-i="${idx}" inputmode="numeric"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.unit))}" data-k="unit" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num">
-          <div class="cellflex">
-            <input class="rowinput right mono" value="${escapeHtml(displayNum2(it.debit))}" data-k="debit" data-i="${idx}" inputmode="decimal">
-            <button class="miniBtn" type="button" title="Debit = QTY × UNIT" data-calcd="${idx}">×</button>
-          </div>
-        </td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml(displayNum2(it.credit))}" data-k="credit" data-i="${idx}" inputmode="decimal"></td>
-        <td class="num"><input class="rowinput right mono" value="${escapeHtml((it.vatRate === "" || it.vatRate === null || it.vatRate === undefined) ? "" : toNumber(it.vatRate).toFixed(1))}" data-k="vatRate" data-i="${idx}" inputmode="decimal"></td>
-        <td class="toggle">
-          <label style="margin:0;display:flex;align-items:center;gap:6px;">
-            <input type="checkbox" ${it.vatEnabled ? "checked":""} data-k="vatEnabled" data-i="${idx}">
-            <span class="hint">Ja</span>
-          </label>
-        </td>
-        <td class="right"><button class="btn" type="button" data-del="${idx}">✕</button></td>
-      `;
-      tbody.appendChild(tr);
-    });
-    recalc();
-  }
-
-  
-  // Update VAT UI fields for a single row WITHOUT re-rendering (keeps focus while typing)
-  function updateRowVatUI(i){
-    const it = state.items[i];
-    if (!it) return;
-    const vatInput = tbody.querySelector(`input[data-i="${i}"][data-k="vatRate"]`);
-    if (vatInput){
-      vatInput.value = (it.vatRate === "" || it.vatRate === null || it.vatRate === undefined)
-        ? ""
-        : toNumber(it.vatRate).toFixed(1);
-    }
-    const cb = tbody.querySelector(`input[type="checkbox"][data-i="${i}"][data-k="vatEnabled"]`);
-    if (cb) cb.checked = !!it.vatEnabled;
-  }
-
-function applyDescVatOnEdit(i){
-    const it = state.items[i];
-    if (!it) return;
-    applyAutoVatRules(it);
-    if (shouldDisableVatByRule(it)){
-      it.vatEnabled = false;
-      it.vatRate = 0;
-    } else {
-      if (it.vatEnabled === false && (toNumber(it.credit) === 0)) it.vatEnabled = true;
-      const mapped = getMappedVatForDesc(it.desc || "");
-      if (mapped !== null && mapped !== undefined) it.vatRate = mapped;
-    }
-  }
-
-  tbody.addEventListener("input", (e) => {
-    const el = e.target;
-    if (!el.dataset || el.dataset.i === undefined) return;
-    const i = parseInt(el.dataset.i, 10);
-    const k = el.dataset.k;
-    if (!state.items[i]) return;
-
-    const vv = el.value;
-    if (["qty","unit","debit","credit","vatRate"].includes(k)){
-      if (String(vv).trim() === "") state.items[i][k] = "";
-      else state.items[i][k] = toNumber(vv);
-    } else {
-      state.items[i][k] = vv;
-    }
-
-    if (k === "desc"){
-      // Don't re-render the whole table on every keystroke (would steal focus).
-      // Just apply VAT mapping + update the VAT fields in the same row.
-      applyDescVatOnEdit(i);
-      updateRowVatUI(i);
-      recalc();
-      return;
-    }
-
-    recalc();
   });
-
-  tbody.addEventListener("blur", (e) => {
-    const el = e.target;
-    if (!el || !el.dataset || el.dataset.i === undefined) return;
-    const k = el.dataset.k;
-    if (["unit","debit","credit"].includes(k)){
-      const s = String(el.value ?? "").trim();
-      el.value = s ? displayNum2(s) : "";
-    }
-    if (k === "qty"){
-      const s = String(el.value ?? "").trim();
-      el.value = s ? displayInt(s) : "";
-    }
-  }, true);
-
-  tbody.addEventListener("change", (e) => {
-    const el = e.target;
-    if (!el.dataset || el.dataset.i === undefined) return;
-    const i = parseInt(el.dataset.i, 10);
-    const k = el.dataset.k;
-    if (!state.items[i]) return;
-
-    if (k === "vatEnabled"){
-      state.items[i].vatEnabled = !!el.checked;
-      recalc();
-    }
-  });
-
-  tbody.addEventListener("click", (e) => {
-// Mini-Button: Debit aus QTY × UNIT berechnen
-const calcBtn = e.target.closest("button[data-calcd]");
-if (calcBtn){
-  const idx = parseInt(calcBtn.dataset.calcd, 10);
-  const it = state.items[idx];
-  if (it){
-    const q = (it.qty === "" ? 0 : toNumber(it.qty));
-    const u = (it.unit === "" ? 0 : toNumber(it.unit));
-    // Wenn eines leer/0 ist, lassen wir Debit leer (damit man nicht versehentlich 0 reinschreibt)
-    if (!q || !u) it.debit = "";
-    else it.debit = Math.round((q * u) * 100) / 100;
-    renderItems();
-    recalc();
-  }
-  return;
 }
-
-const btn = e.target.closest("button[data-del]");
-if (!btn) return;
-const idx = parseInt(btn.dataset.del, 10);
-state.items.splice(idx, 1);
-renderItems();
+document.querySelectorAll('.navbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    q(btn.dataset.page).classList.add('active');
   });
-
-  document.getElementById("addRowBtn").addEventListener("click", () => {
-    state.items.push({ date:"", desc:"", qty:"", unit:"", debit:"", credit:"", vatRate: 3.8, vatEnabled: true });
-    renderItems();
-  });
-
-
-// Entwurf Export/Import Buttons
-document.getElementById("saveDraftBtn")?.addEventListener("click", () => downloadDraftJson());
-document.getElementById("loadDraftBtn")?.addEventListener("click", () => document.getElementById("jsonFile")?.click());
-document.getElementById("jsonFile")?.addEventListener("change", (e) => {
-  const file = e.target.files?.[0];
-  if (file) importDraftJsonFile(file);
-  e.target.value = ""; // reset
 });
 
-
-  function recalc(){
-    state.items = state.items.map(it => {
-      const qty = toNumber(it.qty);
-      const unit = toNumber(it.unit);
-      const debit = it.debit === "" ? "" : toNumber(it.debit);
-      const credit = it.credit === "" ? "" : toNumber(it.credit);
-      if ((debit === "" || debit === 0) && (credit === "" || credit === 0) && qty > 0 && unit > 0){
-        return { ...it, debit: Math.round(qty*unit*100)/100 };
-      }
-      return it;
-    });
-
-    let totalDebit = 0;
-    let totalCredit = 0;
-    for (const it of state.items){
-      applyAutoVatRules(it);
-      totalDebit += (it.debit === "" ? 0 : toNumber(it.debit));
-      totalCredit += (it.credit === "" ? 0 : toNumber(it.credit));
+/* -------- VIYA -------- */
+let viyaParsedRooms = [];
+function viyaLog(m){ q("viyaLog").textContent = new Date().toLocaleTimeString()+" "+m+"\n"+q("viyaLog").textContent; }
+function viyaIsRoomStart(v){ return /^\d+\.Room$/i.test(clean(v)); }
+function viyaIsRoomType(v){ return /^(Double|Twin|Triple|Single)$/i.test(clean(v)); }
+function viyaMapRoomType(v){
+  const s=clean(v).toLowerCase();
+  if(s==="double") return "DBL";
+  if(s==="twin") return "TWI";
+  if(s==="triple") return "TRI";
+  if(s==="single") return q("viyaSingleMode").value;
+  return "";
+}
+function viyaAdult(v){
+  const s=clean(v).toLowerCase();
+  if(s==="double") return 2;
+  if(s==="twin") return 2;
+  if(s==="triple") return 3;
+  if(s==="single") return 1;
+  return "";
+}
+function viyaDetectSpecials(n,f){
+  const t=(n+" "+f).toLowerCase();
+  if(t.includes("guide")) return "Guide";
+  if(t.includes("driver")) return "Driver";
+  if(t.includes("leader")) return "Leader";
+  return "";
+}
+function viyaRowHasGuest(row){ return clean(row[3]) || clean(row[4]) || clean(row[5]) || clean(row[6]); }
+function viyaGuestFromRow(row){
+  const fullSurname=[clean(row[3]),clean(row[4])].filter(Boolean).join(" ");
+  const fullFirst=[clean(row[5]),clean(row[6])].filter(Boolean).join(" ");
+  return { name: fullSurname, firstName: fullFirst, specials: viyaDetectSpecials(fullSurname,fullFirst) };
+}
+function viyaAutoDates(rows){
+  let found=[];
+  for(let r=0;r<Math.min(rows.length,20);r++){
+    const row=rows[r]||[];
+    for(let c=0;c<row.length;c++){
+      const dt=parseDateFromAny(row[c]);
+      if(dt) found.push(dt);
     }
-    const balance = totalDebit - totalCredit;
-
-    document.getElementById("totalDebit").textContent = fmt(totalDebit);
-    document.getElementById("totalCredit").textContent = fmt(totalCredit);
-    document.getElementById("balance").textContent = fmt(balance);
-    document.getElementById("grandTotal").textContent = fmt(balance);
-
-    const groups = new Map();
-    for (const it of state.items){
-      applyAutoVatRules(it);
-      if (!it.vatEnabled) continue;
-      const rate = toNumber(it.vatRate);
-      if (rate <= 0) continue;
-      const lineAmount = (it.debit === "" ? 0 : toNumber(it.debit)) - (it.credit === "" ? 0 : toNumber(it.credit));
-      if (lineAmount === 0) continue;
-      const prev = groups.get(rate) || { gross: 0 };
-      prev.gross += lineAmount;
-      groups.set(rate, prev);
+  }
+  found=[...new Set(found)].sort();
+  if(found[0] && !q("viyaArrival").value) q("viyaArrival").value=found[0];
+  if(found[1] && !q("viyaDeparture").value) q("viyaDeparture").value=found[1];
+}
+function viyaUpdateStats(){
+  q("viyaStatRooms").textContent=viyaParsedRooms.length;
+  q("viyaStatDBL").textContent=viyaParsedRooms.filter(x=>x.roomType==="DBL").length;
+  q("viyaStatTWI").textContent=viyaParsedRooms.filter(x=>x.roomType==="TWI").length;
+  q("viyaStatTRI").textContent=viyaParsedRooms.filter(x=>x.roomType==="TRI").length;
+  q("viyaStatAdults").textContent=viyaParsedRooms.reduce((a,b)=>a+Number(b.adult||0),0);
+}
+function viyaRender(){
+  const tb=q("viyaTbody"); tb.innerHTML="";
+  const arrivalDisplay=formatDateEU(q("viyaArrival").value);
+  const departureDisplay=formatDateEU(q("viyaDeparture").value);
+  const payment=q("viyaPayment").value;
+  viyaParsedRooms.forEach((g,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${i+1}</td><td><input value="${escapeHtml(g.name)}" data-i="${i}" data-k="name"></td><td><input value="${escapeHtml(g.firstName)}" data-i="${i}" data-k="firstName"></td><td>${escapeHtml(arrivalDisplay)}</td><td>${escapeHtml(departureDisplay)}</td><td><select data-i="${i}" data-k="roomType"><option value="DBL" ${g.roomType==="DBL"?"selected":""}>DBL</option><option value="TWI" ${g.roomType==="TWI"?"selected":""}>TWI</option><option value="TRI" ${g.roomType==="TRI"?"selected":""}>TRI</option></select></td><td><input value="${escapeHtml(g.adult)}" data-i="${i}" data-k="adult"></td><td>${escapeHtml(payment)}</td><td class="action-cell"><button class="danger" onclick="viyaDeleteRow(${i})">Löschen</button></td>`;
+    tb.appendChild(tr);
+  });
+  bindTableInputs("viyaTbody", viyaParsedRooms, viyaUpdateStats);
+  viyaUpdateStats();
+  q("viyaSummary").innerHTML=`<b>${viyaParsedRooms.length}</b> Zimmer erkannt | Arrival: ${clean(arrivalDisplay)} | Departure: ${clean(departureDisplay)}`;
+}
+async function viyaAnalyze(){
+  const file=q("viyaFile").files[0];
+  if(!file){ alert("Bitte Viya-Datei wählen"); return; }
+  const wb=await loadWorkbook(file);
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  viyaAutoDates(rows);
+  viyaParsedRooms=[];
+  let startRow = rows.findIndex(r => clean((r||[])[0]) === "No");
+  if(startRow < 0){ viyaLog("Header 'No' nicht gefunden."); viyaRender(); return; }
+  for(let i=startRow+1; i<rows.length; i++){
+    const row = rows[i] || [];
+    const colA = clean(row[0]);
+    if(!viyaIsRoomStart(colA)) continue;
+    if(!viyaRowHasGuest(row)) continue;
+    const guest = viyaGuestFromRow(row);
+    let sourceRoomType = "";
+    for(let j=i+1; j<rows.length; j++){
+      const a = clean((rows[j]||[])[0]);
+      if(viyaIsRoomStart(a)) break;
+      if(viyaIsRoomType(a)){ sourceRoomType = a; break; }
     }
+    if(!sourceRoomType && viyaIsRoomType((row||[])[9])) sourceRoomType = clean(row[9]);
+    if(!sourceRoomType){ viyaLog("Room Type nicht gefunden für "+colA); continue; }
+    viyaParsedRooms.push({name: guest.name, firstName: guest.firstName, roomType: viyaMapRoomType(sourceRoomType), adult: viyaAdult(sourceRoomType), specials: guest.specials});
+  }
+  viyaRender();
+  viyaLog("Analyse fertig: "+viyaParsedRooms.length+" Zimmer");
+}
+async function viyaMaybeLoadTemplate(){ await ensureTemplateBuffer(viyaLog); }
+function viyaExportRows(){
+  return viyaParsedRooms.map((g,i)=>({line:i+1,name:g.name,firstName:g.firstName,arrival:q("viyaArrival").value,departure:q("viyaDeparture").value,roomType:g.roomType,payment:q("viyaPayment").value,adult:g.adult,specials:g.specials}));
+}
+function viyaExport(useTemplate){
+  if(!viyaParsedRooms.length){ alert("Bitte zuerst Viya analysieren"); return; }
+  const rows=viyaExportRows();
+  if(useTemplate){
+    downloadWithTemplate(rows, "Viya_PMS_Hub_Template.xlsx");
+  } else {
+    buildBlankWorkbook(rows, "Rooming List", "Viya_PMS_Hub.xlsx");
+  }
+  viyaLog("Export erstellt: "+rows.length+" Zeilen");
+}
+function viyaDeleteRow(i){ viyaParsedRooms.splice(i,1); viyaRender(); }
+function viyaAddRow(){ viyaParsedRooms.push({name:"", firstName:"", roomType:"DBL", adult:2, specials:""}); viyaRender(); }
 
-    const vatBody = document.querySelector("#vatBreakdownTable tbody");
-    vatBody.innerHTML = "";
-    const pVat = document.getElementById("p_vatRows");
-    pVat.innerHTML = "";
+/* -------- EMETRAVEL -------- */
+let emeParsedRooms = [];
+function emeLog(m){ q("emeLog").textContent = new Date().toLocaleTimeString()+" "+m+"\n"+q("emeLog").textContent; }
+function emeMapRoomType(rooming){
+  const s = clean(rooming).toUpperCase();
+  if(s.includes("TPL")) return "TRI";
+  if(s.includes("TWIN")) return "TWI";
+  if(s.includes("DBL")) return "DBL";
+  if(s === "SGL") return q("emeSingleMode").value;
+  return "";
+}
+function emeAdult(rooming){
+  const s = clean(rooming).toUpperCase();
+  if(s.includes("TPL")) return 3;
+  if(s.includes("TWIN")) return 2;
+  if(s.includes("DBL")) return 2;
+  if(s === "SGL") return 1;
+  return "";
+}
+function emeSplitName(fullName){
+  const name = clean(fullName).replace(/\s*\(MENOR\)\s*/gi, "").trim();
+  if(!name) return { lastName:"", firstName:"", specials:"" };
+  const upper = name.toUpperCase();
+  if(upper === "DRIVER") return { lastName:"Driver", firstName:"", specials:"Driver" };
+  if(upper.includes("TOUR LIDER")) return { lastName:"Guide", firstName:"", specials:"Guide" };
+  const parts = name.split(/\s+/).filter(Boolean);
+  if(parts.length === 1) return { lastName:parts[0], firstName:"", specials:"" };
+  if(parts.length === 2) return { lastName:parts[0], firstName:parts[1], specials:"" };
+  if(parts.length === 3) return { lastName:parts[0]+" "+parts[1], firstName:parts[2], specials:"" };
+  return { lastName:parts.slice(0,2).join(" "), firstName:parts.slice(2).join(" "), specials:"" };
+}
+function emeFindHeaderRow(rows){
+  for(let i=0;i<Math.min(rows.length,15);i++){
+    const a = clean((rows[i]||[])[0]).toUpperCase();
+    const b = clean((rows[i]||[])[1]).toUpperCase();
+    const c = clean((rows[i]||[])[2]).toUpperCase();
+    if(a==="NO" && b==="NOMBRE" && c==="ROOMING") return i;
+  }
+  return -1;
+}
+function emeUpdateStats(){
+  q("emeStatRooms").textContent=emeParsedRooms.length;
+  q("emeStatDBL").textContent=emeParsedRooms.filter(x=>x.roomType==="DBL").length;
+  q("emeStatTWI").textContent=emeParsedRooms.filter(x=>x.roomType==="TWI").length;
+  q("emeStatTRI").textContent=emeParsedRooms.filter(x=>x.roomType==="TRI").length;
+  q("emeStatAdults").textContent=emeParsedRooms.reduce((a,b)=>a+Number(b.adult||0),0);
+}
+function emeRender(){
+  const tb=q("emeTbody"); tb.innerHTML="";
+  const arrivalDisplay=formatDateEU(q("emeArrival").value);
+  const departureDisplay=formatDateEU(q("emeDeparture").value);
+  const payment=q("emePayment").value;
+  emeParsedRooms.forEach((g,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${i+1}</td><td><input value="${escapeHtml(g.name)}" data-i="${i}" data-k="name"></td><td><input value="${escapeHtml(g.firstName)}" data-i="${i}" data-k="firstName"></td><td>${escapeHtml(arrivalDisplay)}</td><td>${escapeHtml(departureDisplay)}</td><td><select data-i="${i}" data-k="roomType"><option value="DBL" ${g.roomType==="DBL"?"selected":""}>DBL</option><option value="TWI" ${g.roomType==="TWI"?"selected":""}>TWI</option><option value="TRI" ${g.roomType==="TRI"?"selected":""}>TRI</option></select></td><td><input value="${escapeHtml(g.adult)}" data-i="${i}" data-k="adult"></td><td>${escapeHtml(payment)}</td><td>${escapeHtml(g.source)}</td><td class="action-cell"><button class="danger" onclick="emeDeleteRow(${i})">Löschen</button></td>`;
+    tb.appendChild(tr);
+  });
+  bindTableInputs("emeTbody", emeParsedRooms, emeUpdateStats);
+  emeUpdateStats();
+  q("emeSummary").innerHTML=`<b>${emeParsedRooms.length}</b> Zimmer erkannt | Arrival: ${clean(arrivalDisplay)} | Departure: ${clean(departureDisplay)}`;
+}
+async function emeAnalyze(){
+  const file=q("emeFile").files[0];
+  if(!file){ alert("Bitte Emetravel-Datei wählen"); return; }
+  const wb=await loadWorkbook(file);
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  emeParsedRooms=[];
+  const headerRow=emeFindHeaderRow(rows);
+  if(headerRow<0){ emeLog("Header NO / NOMBRE / ROOMING nicht gefunden."); emeRender(); return; }
+  for(let i=headerRow+1;i<rows.length;i++){
+    const row=rows[i]||[];
+    const no=clean(row[0]), nombre=row[1], rooming=clean(row[2]);
+    if(!no && !clean(nombre) && !rooming) continue;
+    if(!rooming) continue;
+    const split=emeSplitName(nombre);
+    emeParsedRooms.push({name:split.lastName, firstName:split.firstName, roomType:emeMapRoomType(rooming), adult:emeAdult(rooming), specials:split.specials || "", source:rooming});
+  }
+  emeRender();
+  emeLog("Analyse fertig: "+emeParsedRooms.length+" Zimmer");
+}
+async function emeMaybeLoadTemplate(){ await ensureTemplateBuffer(emeLog); }
+function emeExportRows(){
+  return emeParsedRooms.map((g,i)=>({line:i+1,name:g.name,firstName:g.firstName,arrival:q("emeArrival").value,departure:q("emeDeparture").value,roomType:g.roomType,payment:q("emePayment").value,adult:g.adult,specials:g.specials}));
+}
+function emeExport(useTemplate){
+  if(!emeParsedRooms.length){ alert("Bitte zuerst Emetravel analysieren"); return; }
+  const rows=emeExportRows();
+  if(useTemplate){
+    downloadWithTemplate(rows, "Emetravel_PMS_Hub_Template.xlsx");
+  } else {
+    buildBlankWorkbook(rows, "Rooming List", "Emetravel_PMS_Hub.xlsx");
+  }
+  emeLog("Export erstellt: "+rows.length+" Zeilen");
+}
+function emeDeleteRow(i){ emeParsedRooms.splice(i,1); emeRender(); }
+function emeAddRow(){ emeParsedRooms.push({name:"", firstName:"", roomType:"DBL", adult:2, specials:"", source:""}); emeRender(); }
 
-    const rates = Array.from(groups.keys()).sort((a,b) => a-b);
-    if (rates.length === 0){
-      vatBody.innerHTML = `<tr><td class="muted" colspan="4">Keine MwSt-pflichtigen Positionen.</td></tr>`;
-      pVat.innerHTML = `<tr><td class="muted" colspan="4" style="padding:6px 4px;">Keine MwSt.</td></tr>`;
+/* -------- EXA TRAVEL -------- */
+let exaParsedRooms = [];
+function exaLog(m){ q("exaLog").textContent = new Date().toLocaleTimeString()+" "+m+"\n"+q("exaLog").textContent; }
+function exaMapRoomType(room){
+  const s = clean(room).toUpperCase();
+  if(s.includes("TWIN")) return "TWI";
+  if(s.includes("TPL")) return "TRI";
+  if(s.includes("DBL")) return "DBL";
+  if(s.includes("SGL")) return q("exaSingleMode").value;
+  return "";
+}
+function exaAdult(room){
+  const s = clean(room).toUpperCase();
+  if(s.includes("TWIN")) return 2;
+  if(s.includes("TPL")) return 3;
+  if(s.includes("DBL")) return 2;
+  if(s.includes("SGL")) return 1;
+  return "";
+}
+function exaSpecials(lastName, firstName){
+  const t = (clean(lastName)+" "+clean(firstName)).toUpperCase();
+  if(t.includes("GUIDE")) return "Guide";
+  if(t.includes("DRIVER")) return "Driver";
+  return "";
+}
+function exaUpdateStats(){
+  q("exaStatRooms").textContent=exaParsedRooms.length;
+  q("exaStatDBL").textContent=exaParsedRooms.filter(x=>x.roomType==="DBL").length;
+  q("exaStatTWI").textContent=exaParsedRooms.filter(x=>x.roomType==="TWI").length;
+  q("exaStatTRI").textContent=exaParsedRooms.filter(x=>x.roomType==="TRI").length;
+  q("exaStatAdults").textContent=exaParsedRooms.reduce((a,b)=>a+Number(b.adult||0),0);
+}
+function exaRender(){
+  const tb=q("exaTbody"); tb.innerHTML="";
+  const arrivalDisplay=formatDateEU(q("exaArrival").value);
+  const departureDisplay=formatDateEU(q("exaDeparture").value);
+  const payment=q("exaPayment").value;
+  exaParsedRooms.forEach((g,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${i+1}</td><td><input value="${escapeHtml(g.name)}" data-i="${i}" data-k="name"></td><td><input value="${escapeHtml(g.firstName)}" data-i="${i}" data-k="firstName"></td><td>${escapeHtml(arrivalDisplay)}</td><td>${escapeHtml(departureDisplay)}</td><td><select data-i="${i}" data-k="roomType"><option value="DBL" ${g.roomType==="DBL"?"selected":""}>DBL</option><option value="TWI" ${g.roomType==="TWI"?"selected":""}>TWI</option><option value="TRI" ${g.roomType==="TRI"?"selected":""}>TRI</option></select></td><td><input value="${escapeHtml(g.adult)}" data-i="${i}" data-k="adult"></td><td>${escapeHtml(payment)}</td><td>${escapeHtml(g.source)}</td><td class="action-cell"><button class="danger" onclick="exaDeleteRow(${i})">Löschen</button></td>`;
+    tb.appendChild(tr);
+  });
+  bindTableInputs("exaTbody", exaParsedRooms, exaUpdateStats);
+  exaUpdateStats();
+  q("exaSummary").innerHTML=`<b>${exaParsedRooms.length}</b> Zimmer erkannt | Arrival: ${clean(arrivalDisplay)} | Departure: ${clean(departureDisplay)}`;
+}
+function exaAutoDates(lines){
+  let found=[];
+  lines.forEach(line=>{
+    const m = clean(line).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g);
+    if(m){
+      m.forEach(x=>{
+        const dt=parseDateFromAny(x);
+        if(dt) found.push(dt);
+      });
+    }
+  });
+  found=[...new Set(found)].sort();
+  if(found[0] && !q("exaArrival").value) q("exaArrival").value=found[0];
+  if(found[1] && !q("exaDeparture").value) q("exaDeparture").value=found[1];
+}
+function exaParseFlexibleLine(line){
+  if(line.includes('\t')) return line.split('\t').map(x=>clean(x));
+  return line.split(/\s{2,}/).map(x=>clean(x));
+}
+function exaFindPaxHeader(lines){
+  return lines.findIndex(l => {
+    const s = clean(l).toUpperCase().replace(/\s+/g,' ');
+    return s.includes('PAX') && s.includes('LAST NAME') && s.includes('ADT/CHD') && s.includes('ROOM');
+  });
+}
+function exaNormalizeHeader(line){ return clean(line).toUpperCase().replace(/\s+/g,' '); }
+function exaLooksLikePassengerLine(line){ return /^\s*\d+\s+/.test(line) || /^\d+\t/.test(line); }
+function exaExtractRoomToken(line){
+  const u = clean(line).toUpperCase();
+  const patterns = [/TPL\s*C\/MNR\d+/, /\bTPL\b/, /\bTWIN\b/, /\bDBL(?:\s*\+\s*IFN)?\b/, /\bSGL\b/];
+  for(const p of patterns){
+    const m = u.match(p);
+    if(m) return m[0];
+  }
+  return "";
+}
+async function exaAnalyze(){
+  const text = q("exaText").value;
+  if(!clean(text)){ alert("Bitte den Exa Travel E-Mail-Text einfügen"); return; }
+  const lines = text.split(/\r?\n/).map(x=>x.replace(/\r/g,'')).filter(x=>clean(x));
+  exaAutoDates(lines);
+  exaParsedRooms = [];
+  const headerIdx = exaFindPaxHeader(lines);
+  if(headerIdx < 0){ exaLog("PAX Header nicht gefunden."); exaRender(); return; }
+  for(let i=headerIdx+1;i<lines.length;i++){
+    const line = lines[i];
+    const norm = exaNormalizeHeader(line);
+    if(norm.startsWith('NIGHTS DATE CITY')) continue;
+    if(norm.startsWith('PAX LAST NAME NAME')) continue;
+    if(!exaLooksLikePassengerLine(line)) continue;
+    const cols = exaParseFlexibleLine(line);
+    const paxNo = clean(cols[0] || "");
+    if(!/^\d+$/.test(paxNo)) continue;
+    let lastName = clean(cols[1] || "");
+    let firstName = clean(cols[2] || "");
+    const room = exaExtractRoomToken(line);
+    if(!room) continue;
+    const roomType = exaMapRoomType(room);
+    if(!roomType) continue;
+    const lineUpper = clean(line).toUpperCase();
+    let outLast = lastName;
+    let outFirst = firstName;
+    let outSpecials = "";
+    if(/\bGUIDE\b/.test(lineUpper)){
+      outLast = 'Guide';
+      outFirst = '';
+      outSpecials = 'Guide';
+    } else if(/\bDRIVER\b/.test(lineUpper)){
+      outLast = 'Driver';
+      outFirst = '';
+      outSpecials = 'Driver';
     } else {
-      for (const rate of rates){
-        const gross = groups.get(rate).gross;
-        const r = rate / 100;
-        const net = gross / (1 + r);
-        const vat = gross - net;
-
-        vatBody.insertAdjacentHTML("beforeend", `
-          <tr>
-            <td class="mono">${rate.toFixed(1)}%</td>
-            <td class="num mono">${fmt(net)}</td>
-            <td class="num mono">${fmt(vat)}</td>
-            <td class="num mono">${fmt(gross)}</td>
-          </tr>
-        `);
-
-        pVat.insertAdjacentHTML("beforeend", `
-          <tr>
-            <td class="mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${rate.toFixed(1)}%</td>
-            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(net)}</td>
-            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(vat)}</td>
-            <td class="num mono" style="padding:6px 4px;border-bottom:1px solid #eee;">${fmt(gross)}</td>
-          </tr>
-        `);
-      }
+      outSpecials = exaSpecials(outLast, outFirst);
     }
-
-    syncPrintable(totalDebit, totalCredit, balance);
+    exaParsedRooms.push({ name: outLast, firstName: outFirst, roomType: roomType, adult: exaAdult(room), specials: outSpecials, source: room });
   }
-
-  function getInvoiceTitle(){
-    const type = (v("invoiceType") || "INVOICE").toUpperCase();
-    if (type === "PROFORMA-INVOICE") return "PROFORMA-INVOICE";
-    if (type === "INFORMATION-INVOICE") return "INFORMATION-INVOICE";
-    return "INVOICE";
+  exaRender();
+  exaLog("Analyse fertig: "+exaParsedRooms.length+" Zimmer");
+}
+async function exaMaybeLoadTemplate(){ await ensureTemplateBuffer(exaLog); }
+function exaExportRows(){
+  return exaParsedRooms.map((g,i)=>({line:i+1,name:g.name,firstName:g.firstName,arrival:q("exaArrival").value,departure:q("exaDeparture").value,roomType:g.roomType,payment:q("exaPayment").value,adult:g.adult,specials:g.specials}));
+}
+function exaExport(useTemplate){
+  if(!exaParsedRooms.length){ alert("Bitte zuerst Exa Travel analysieren"); return; }
+  const rows=exaExportRows();
+  if(useTemplate){
+    downloadWithTemplate(rows, "ExaTravel_PMS_Hub_Template.xlsx");
+  } else {
+    buildBlankWorkbook(rows, "Rooming List", "ExaTravel_PMS_Hub.xlsx");
   }
-
-  function syncPrintable(totalDebit, totalCredit, balance){
-    setText("p_invoiceTitle", getInvoiceTitle());
-    setText("p_invoiceNo", v("invoiceNo") || "—");
-    setText("p_invoiceTitle", v("invoiceType") || "INVOICE");
-    setText("p_invoiceDate", isoToDmy(v("invoiceDate")) || "—");
-    setText("p_arrival", isoToDmy(v("arrival")) || "—");
-    setText("p_departure", isoToDmy(v("departure")) || "—");
-    setText("p_roomRes", v("roomReservation") || "—");
-    setText("p_currency", v("currency") || "—");
-
-    const sellerHeadMain = [ v("sellerName"), v("sellerAddressBlock") ].filter(Boolean).join("\n");
-    setText("p_sellerHeadMain", sellerHeadMain);
-
-    const sellerHeadContact = [ v("sellerContact"), v("sellerExtra") ].filter(Boolean).join(" | ");
-    setText("p_sellerHeadContact", sellerHeadContact);
-
-    const sellerBlock = [ v("sellerName"), v("sellerAddressBlock"), v("sellerContact"), v("sellerExtra") ].filter(Boolean).join("\n");
-    setText("p_seller", sellerBlock);
-
-    setText("p_buyer", (v("buyerAddressBlock") || "").trim());
-    setText("p_reference", v("reference") || "—");
-
-    const pItems = document.getElementById("p_items");
-    pItems.innerHTML = "";
-    for (const it of state.items){
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="mono">${escapeHtml(isoToDmy(it.date ?? ""))}</td>
-        <td style="white-space:pre-wrap">${escapeHtml(it.desc ?? "")}</td>
-        <td class="num mono">${(it.qty === "" ? "" : displayInt(it.qty))}</td>
-        <td class="num mono">${(it.unit === "" ? "" : toNumber(it.unit).toFixed(2))}</td>
-        <td class="num mono">${(it.debit === "" ? "" : fmt(toNumber(it.debit)))}</td>
-        <td class="num mono">${(it.credit === "" ? "" : fmt(toNumber(it.credit)))}</td>
-        <td class="num mono">${it.vatEnabled ? (toNumber(it.vatRate).toFixed(1) + "%") : "—"}</td>
-      `;
-      pItems.appendChild(tr);
-    }
-
-    setText("p_totalDebit", fmt(totalDebit));
-    setText("p_totalCredit", fmt(totalCredit));
-    setText("p_balance", fmt(balance));
-
-    setText("p_legalLeft", FIXED_FOOTER_LEFT);
-    setText("p_legalRight", FIXED_FOOTER_RIGHT);
-  }
-
-  ["invoiceType","sellerName","sellerContact","sellerExtra","sellerAddressBlock","buyerAddressBlock","reference","invoiceNo","invoiceDate","currency","arrival","departure","roomReservation"]
-    .forEach(id => document.getElementById(id)?.addEventListener("input", () => recalc()));
-
-  document.getElementById("printBtn").addEventListener("click", () => { recalc(); window.print(); });
-
-  document.getElementById("exportPdfBtn").addEventListener("click", async () => {
-    try{
-      recalc();
-      const ok = await ensureExportLibs();
-      if (!ok){ alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“."); return; }
-      const paper = document.getElementById("invoicePaper");
-      let canvas;
-      try{
-        canvas = await html2canvas(paper, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-        canvas.toDataURL("image/png");
-      } catch (e1){
-        canvas = await html2canvas(paper, {
-          scale: 2, useCORS: false, backgroundColor: "#ffffff",
-          onclone: (doc) => {
-            doc.querySelectorAll("#invoicePaper img").forEach(img => img.remove());
-            const fb = doc.getElementById("logoFallback");
-            if (fb){
-              fb.style.display = "block";
-              fb.style.color = "#666";
-              fb.innerHTML = 'ibis<br><span style="font-size:11px;color:#666;">Zurich Messe Airport</span>';
-            }
-          }
-        });
-      }
-      const imgData = canvas.toDataURL("image/png");
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = pageWidth;
-      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-
-      if (imgHeight <= pageHeight){
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
-      } else {
-        let remaining = imgHeight;
-        let position = 0;
-        while (remaining > 0){
-          pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-          remaining -= pageHeight;
-          position -= pageHeight;
-          if (remaining > 0) pdf.addPage();
-        }
-      }
-
-      const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g,"_");
-      const title = getInvoiceTitle().replace(/[^\w\-]+/g,"_");
-      pdf.save(`Finale_${title}_${inv}.pdf`);
-      setPill("exportPill", "<b>Export:</b> PDF erstellt ✓", "ok");
-    } catch (err){
-      setPill("exportPill", "<b>Export:</b> Fehler", "warn");
-      alert("PDF Export fehlgeschlagen: " + (err?.message || err));
-    }
-  });
-
-  // PARSER (wie vorher)
-  function parseInvoiceFromText(text){
-    const t = (text || "");
-    const upper = t.toUpperCase();
-
-    const rawLines = t.replace(/\r/g,"").split("\n");
-    const lines = rawLines.map(s => s.trim()).filter(Boolean);
-
-    const out = {
-      buyerAddressBlock: "",
-      reference: "",
-      invoiceNo: "",
-      invoiceDate: "",
-      currency: "",
-      arrival: "",
-      departure: "",
-      roomReservation: "",
-      items: []
-    };
-
-    const pick = (re) => {
-      const m = t.match(re);
-      return m ? (m[1] ?? "").trim() : "";
-    };
-
-    const normDate = (d) => String(d||"").replace(/\//g,".").replace(/^(\d{2}\.\d{2}\.)(\d{2})$/, "$120$2");
-
-    out.invoiceNo = pick(/\bInvoice\s*No\.?\s*[:\-]?\s*([A-Z0-9\-\/]{2,})\b/i) ||
-                    pick(/\bInvoice\s*No\.?\s+([A-Z0-9\-\/]{2,})\b/i);
-
-    out.invoiceDate = pick(/\bDate\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-    out.arrival     = pick(/\bArrival\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-    out.departure   = pick(/\bDeparture\s*[:\-]?\s*([0-9]{2}[.\/][0-9]{2}[.\/][0-9]{4})\b/i);
-
-    if (out.invoiceDate) out.invoiceDate = normDate(out.invoiceDate);
-    if (out.arrival) out.arrival = normDate(out.arrival);
-    if (out.departure) out.departure = normDate(out.departure);
-
-    out.currency = pick(/\bCurrency\s*[:\-]?\s*([A-Z]{3})\b/i);
-    if (!out.currency){
-      const m = upper.match(/\b(CHF|EUR|USD|GBP)\b/);
-      if (m) out.currency = m[1];
-    }
-
-    const roomRes1 = pick(/\bRoom\s*\/\s*Reservation\s*[:\-]?\s*([^\n]+)\b/i);
-    if (roomRes1) out.roomReservation = roomRes1;
-    if (!out.roomReservation){
-      const rm = pick(/\bRoom\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bRoom\s*([0-9A-Z\-\/]+)\b/i);
-      const rs = pick(/\bReservation\s*No\.?\s*[:\-]?\s*([0-9A-Z\-\/]+)\b/i) || pick(/\bReservation\s*([0-9A-Z\-\/]+)\b/i);
-      if (rm || rs){
-        out.roomReservation = [rm ? `Room ${rm}` : "", rs ? `Reservation ${rs}` : ""].filter(Boolean).join(" | ");
-      }
-    }
-
-    out.reference =
-      pick(/\bGuest\s*Name\b\s*[:\-]?\s*([^\n]+)\b/i) ||
-      pick(/\bGastname\b\s*[:\-]?\s*([^\n]+)\b/i);
-
-    const vatMatch = t.match(/\bVAT\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
-    const defaultRate = vatMatch ? toNumber(vatMatch[1]) : 3.8;
-
-    function parseMoneyCell(s){
-      const raw = String(s || "").trim();
-      if (!raw) return "";
-      const isParens = /^\(.*\)$/.test(raw);
-      const cleaned = raw.replace(/[()]/g,"").replace(/[^\d.,\-]/g,"");
-      let n = toNumber(cleaned);
-      if (isParens) n = -Math.abs(n);
-      return n;
-    }
-
-    function looksLikeAmountToken(s){
-      const x = String(s || "").trim();
-      if (!x) return false;
-      return /[0-9]/.test(x) && /[.,]\d{2}\)?$/.test(x) && /^[()\-0-9.,'’\s]+$/.test(x);
-    }
-
-    function cleanupBuyerBlock(block){
-      const bl = String(block || "").split("\n").map(x=>x.trim()).filter(Boolean);
-      const filtered = bl.filter(l =>
-        !/^\s*invoice\b/i.test(l) &&
-        !/^\s*copy\s+of\s+invoice\b/i.test(l) &&
-        !/^\s*information[-\s]?invoice\b/i.test(l) &&
-        !/^\s*proforma[-\s]?invoice\b/i.test(l)
-      );
-      return filtered.join("\n").trim();
-    }
-
-    // Kunde-Adresse: alles was direkt über dem Titel steht (INVOICE / COPY OF INVOICE / INFORMATION-INVOICE / ...)
-    (function parseBuyerAddressFromInvoiceHeading(){
-      const isTitleLine = (s) => /^\s*(COPY\s+OF\s+)?(INVOICE|INFORMATION[-\s]?INVOICE|PROFORMA[-\s]?INVOICE)\s*$/i.test(String(s||"").trim());
-      const idx = rawLines.findIndex(isTitleLine);
-      if (idx < 0) return;
-
-      const collected = [];
-      let i = idx - 1;
-      let guard = 0;
-
-      while (i >= 0 && rawLines[i].trim() === "") i--;
-
-      while (i >= 0 && guard < 20){
-        const line = rawLines[i];
-        if (line.trim() === "") break;
-
-        const low = line.toLowerCase();
-        // Stop wenn wir in den Hotel/Seller-Block rutschen (ibis/Adresse)
-        if (low.includes("ibis") && low.includes("zurich")) break;
-        if (low.includes("heidi") && low.includes("abel-weg")) break;
-        if (low.includes("essendi") && low.includes("switzerland")) break;
-
-        collected.unshift(line.trim());
-        i--;
-        guard++;
-      }
-
-      const cleaned = cleanupBuyerBlock(collected.join("\n"));
-      if (cleaned) out.buyerAddressBlock = cleaned;
-    })();
-
-    // Fallback: manchmal gibt es "To" Block
-    (function parseBuyerAddressFallback(){
-      if (out.buyerAddressBlock) return;
-      const idxTo = lines.findIndex(l => /^To$/i.test(l));
-      if (idxTo >= 0){
-        let end = Math.min(lines.length, idxTo + 12);
-        const raw = lines.slice(idxTo+1, end).join("\n").trim();
-        const cleaned = cleanupBuyerBlock(raw);
-        if (cleaned) { out.buyerAddressBlock = cleaned; return; }
-      }
-    })();
-
-    const items = [];
-
-    // Pipe-Format: "date | desc | qty | unit | debit | credit"
-    for (const line of lines){
-      if (!line.includes("|")) continue;
-      const parts = line.split(/\s*\|\s*/).map(s=>s.trim());
-
-      const date = parts[0] || "";
-      if (!( /^\d{2}[./]\d{2}[./](\d{2}|\d{4})$/.test(date) || /^\d{4}-\d{2}-\d{2}$/.test(date) )) continue;
-
-      let idx = 1;
-      if (/^\d+(?:[.,]\d+)?%?$/.test(parts[1] || "")) idx = 2;
-
-      const rest = parts.slice(idx).filter(p => p !== "");
-      const moneyLike = (s) => looksLikeAmountToken(s);
-
-      const restTokens = rest.slice();
-      const moneyTokens = [];
-      while (restTokens.length && moneyTokens.length < 2){
-        const tok = restTokens[restTokens.length - 1];
-        if (moneyLike(tok)){
-          moneyTokens.unshift(tok);
-          restTokens.pop();
-        } else break;
-      }
-      if (moneyTokens.length === 0) continue;
-
-      let qty = "";
-      if (restTokens.length){
-        const maybeQty = restTokens[restTokens.length - 1];
-        if (/^\d{1,6}$/.test(maybeQty)){
-          qty = toNumber(maybeQty);
-          restTokens.pop();
-        }
-      }
-
-      let unit = "";
-      if (restTokens.length){
-        const maybeUnit = restTokens[restTokens.length - 1];
-        if (/^\d+(?:[.,]\d+)?$/.test(maybeUnit)){
-          unit = toNumber(maybeUnit);
-          restTokens.pop();
-        }
-      }
-
-      const descRaw = restTokens.join(" ").trim();
-      if (!descRaw) continue;
-      const desc = descRaw.replace(/__NL__/g, "\n");
-
-      let debitVal = "";
-      let creditVal = "";
-
-      if (moneyTokens.length >= 2){
-        debitVal = parseMoneyCell(moneyTokens[0]);
-        creditVal = parseMoneyCell(moneyTokens[1]);
-      } else {
-        const one = parseMoneyCell(moneyTokens[0]);
-        if (String(line).toLowerCase().includes("credit") || isPaymentDesc(desc)){
-          creditVal = Math.abs(one);
-          debitVal = "";
-        } else if (one < 0 && !keepNegativeInDebit(desc)){
-          creditVal = Math.abs(one);
-          debitVal = "";
-        } else {
-          debitVal = one;
-          creditVal = "";
-        }
-      }
-
-      if (creditVal !== "" && creditVal < 0) creditVal = Math.abs(creditVal);
-
-      if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
-        if (!keepNegativeInDebit(desc)){
-          creditVal = Math.abs(debitVal);
-          debitVal = "";
-        }
-      }
-
-      const item = {
-        date: dateToInputValue(normDate(date) || date),
-        desc,
-        qty: qty === "" ? "" : qty,
-        unit: (unit === "" ? "" : unit),
-        debit: (debitVal === "" ? "" : debitVal),
-        credit: (creditVal === "" ? "" : Math.abs(creditVal)),
-        vatRate: defaultRate,
-        vatEnabled: true
-      };
-
-      applyAutoVatRules(item);
-      if (shouldDisableVatByRule(item)){
-        item.vatEnabled = false;
-        item.vatRate = 0;
-      }
-
-      items.push(item);
-    }
-
-    // Fallback: "einzeilig" ohne Pipes, wenn Datum am Zeilenanfang + Betrag am Ende
-    if (items.length === 0){
-      const moneyRe = /^(?:\()?-?\d{1,3}(?:[’'\s]\d{3})*(?:[.,]\d{2})(?:\))?$/;
-      const dateRe = /^\s*(\d{2}[./]\d{2}[./](?:\d{2}|\d{4}))\s+/;
-
-      for (const rawLine of lines){
-        const mDate = rawLine.match(dateRe);
-        if (!mDate) continue;
-
-        let rest = rawLine.replace(dateRe, "").trim();
-        if (!rest) continue;
-
-        const tokens = rest.split(/\s+/);
-        if (tokens.length < 2) continue;
-
-        const endVals = [];
-        while (tokens.length && endVals.length < 2){
-          const tok = tokens[tokens.length - 1];
-          if (moneyRe.test(tok) && looksLikeAmountToken(tok)){
-            endVals.unshift(tok);
-            tokens.pop();
-          } else {
-            break;
-          }
-        }
-        if (endVals.length === 0) continue;
-
-        let qty = "";
-        if (tokens.length){
-          const maybeQty = tokens[tokens.length - 1];
-          if (/^\d{1,6}$/.test(maybeQty)){
-            qty = toNumber(maybeQty);
-            tokens.pop();
-          }
-        }
-
-        const desc = tokens.join(" ").trim();
-        if (!desc) continue;
-
-        let debitVal = "";
-        let creditVal = "";
-
-        if (endVals.length >= 2){
-          debitVal = parseMoneyCell(endVals[0]);
-          creditVal = parseMoneyCell(endVals[1]);
-        } else {
-          const one = parseMoneyCell(endVals[0]);
-          if (String(rest).toLowerCase().includes("credit") || isPaymentDesc(desc)){
-            creditVal = Math.abs(one);
-            debitVal = "";
-          } else if (one < 0 && !keepNegativeInDebit(desc)){
-            creditVal = Math.abs(one);
-            debitVal = "";
-          } else {
-            debitVal = one;
-            creditVal = "";
-          }
-        }
-
-        if (creditVal !== "" && creditVal < 0) creditVal = Math.abs(creditVal);
-
-        if (debitVal !== "" && debitVal < 0 && (creditVal === "" || creditVal === 0)){
-          if (!keepNegativeInDebit(desc)){
-            creditVal = Math.abs(debitVal);
-            debitVal = "";
-          }
-        }
-
-        const item = {
-          date: dateToInputValue(normDate(mDate[1]) || mDate[1]),
-          desc,
-          qty: qty === "" ? "" : qty,
-          unit: "",
-          debit: (debitVal === "" ? "" : debitVal),
-          credit: (creditVal === "" ? "" : Math.abs(creditVal)),
-          vatRate: defaultRate,
-          vatEnabled: true
-        };
-
-        applyAutoVatRules(item);
-        if (shouldDisableVatByRule(item)){
-          item.vatEnabled = false;
-          item.vatRate = 0;
-        }
-
-        items.push(item);
-      }
-    }
-
-    out.items = items;
-
-    const hasAnything =
-      !!out.invoiceNo || !!out.invoiceDate || !!out.arrival || !!out.departure ||
-      !!out.roomReservation || (out.items && out.items.length > 0) ||
-      !!out.buyerAddressBlock || !!out.reference;
-
-    return hasAnything ? out : null;
-  }
-
-  
-
-  function applyParsed(d){
-    if (!d) return;
-    if (d.buyerAddressBlock) setV("buyerAddressBlock", d.buyerAddressBlock);
-    if (d.reference) setV("reference", d.reference);
-    if (d.invoiceNo) setV("invoiceNo", d.invoiceNo);
-    if (d.invoiceDate) setV("invoiceDate", dateToInputValue(d.invoiceDate));
-    if (d.currency) setV("currency", d.currency);
-    if (d.arrival) setV("arrival", dateToInputValue(d.arrival));
-    if (d.departure) setV("departure", dateToInputValue(d.departure));
-    if (d.roomReservation) setV("roomReservation", d.roomReservation);
-    if (Array.isArray(d.items)){
-      state.items = d.items;
-      for (const it of state.items){ applyDescriptionVat(it); applyAutoVatRules(it); if (shouldDisableVatByRule(it)){ it.vatEnabled = false; it.vatRate = 0; } }
-    }
-    renderItems();
-  }
-
-  const pdfFileInput = document.getElementById("pdfFile");
-  const extractedTextEl = document.getElementById("extractedText");
-  // Bindings (sicherstellen, dass DOM vorhanden ist)
-  document.addEventListener("DOMContentLoaded", () => {
-    // (Bindings werden unten gesetzt; Listener hier ist nur ein Safety-Net)
-  });
-
-  pdfFileInput.addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} …`, "");
-    const ok = await ensurePdfJsReady();
-    if (!ok){
-      setPill("importPill", `<b>Import:</b> blockiert (Text-Fallback)`, "warn");
-      alert("PDF.js ist blockiert. Bitte Text im Debug-Feld einfügen und „Aus Debug-Text importieren“ nutzen.");
-      e.target.value = "";
-      return;
-    }
-
-    try{
-      const buf = await file.arrayBuffer();
-      const data = new Uint8Array(buf);
-
-      let pdf;
-      try{
-        pdf = await pdfjsLib.getDocument({ data }).promise;
-      } catch (err1){
-        pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
-        setPill("workerPill", "<b>PDF.js:</b> Worker deaktiviert (Fallback)", "warn");
-      }
-
-      let fullText = "";
-      for (let p=1; p<=pdf.numPages; p++){
-        const page = await pdf.getPage(p);
-        fullText += await extractPageTextByLines(page);
-        fullText += "\n";
-      }
-
-      fullText = normalizeText(fullText);
-      extractedTextEl.value = fullText;
-
-      const mode = document.getElementById("importMode")?.value || "single";
-      const prepared = preprocessTextForImportMode(fullText, mode);
-      const parsed = parseInvoiceFromText(prepared);
-      if (parsed){
-        applyParsed(parsed);
-        setPill("importPill", `<b>Import:</b> ${escapeHtml(file.name)} ✓`, "ok");
-      } else {
-        setPill("importPill", `<b>Import:</b> nichts erkannt`, "warn");
-        alert("PDF importiert, aber Daten nicht erkannt. Bitte im Debug-Feld prüfen.");
-      }
-    } catch(err){
-      setPill("importPill", `<b>Import:</b> Fehler`, "warn");
-      alert("PDF Import fehlgeschlagen: " + (err?.message || err));
-    } finally {
-      e.target.value = "";
-    }
-  });
-
-  function importFromDebugText(label){
-    try{
-      console.log("importFromDebugText start", label);
-      const txt = (extractedTextEl.value || "").trim();
-      setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} …`, "");
-      const hintEl = document.getElementById("importHint");
-      if (hintEl) hintEl.textContent = "";
-
-      if (!txt){
-        setPill("importPill", `<b>Import:</b> kein Debug-Text`, "warn");
-        if (hintEl) hintEl.textContent = "Bitte erst den Text in das Debug-Feld einfügen (oder PDF importieren).";
-        return;
-      }
-
-      const mode = document.getElementById("importMode")?.value || "single";
-      console.log("import mode:", mode);
-
-      let prepared = txt;
-      try{
-        prepared = preprocessTextForImportMode(txt, mode);
-      } catch(ePrep){
-        console.error("preprocess failed", ePrep);
-      }
-
-      console.log("prepared preview:", prepared.slice(0, 400));
-
-      const parsed = parseInvoiceFromText(prepared);
-
-      if (parsed){
-        console.log("parsed ok. items:", parsed.items?.length);
-        applyParsed(parsed);
-        setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} ✓`, "ok");
-      } else {
-        console.warn("parsed null");
-        setPill("importPill", `<b>Import:</b> ${escapeHtml(label)} – nichts erkannt`, "warn");
-        if (hintEl) hintEl.textContent = "Text vorhanden, aber Parser hat keine Positionen erkannt. Prüfe den Import-Modus (1/2/3 Zeilen) und ob die Tabelle im Text enthalten ist.";
-      }
-    } catch(err){
-      console.error("IMPORT ERROR", err);
-      const hintEl = document.getElementById("importHint");
-      if (hintEl) hintEl.textContent = "Import-Fehler: " + (err?.message || err);
-      setPill("importPill", "<b>Import:</b> Fehler (Konsole prüfen)", "warn");
-    }
-  }
-
-  const importBtn = document.getElementById("importFromDebugBtn");
-  if (importBtn) importBtn.addEventListener("click", () => importFromDebugText("Debug-Text"));
-
-  const clearBtn = document.getElementById("clearDebugBtn");
-  if (clearBtn) clearBtn.addEventListener("click", () => {
-    extractedTextEl.value = "";
-    setPill("importPill", "<b>Import:</b> Debug-Text geleert", "");
-  });
-  const clearTop = document.getElementById("clearDebugTopBtn");
-  if (clearTop){
-    clearTop.addEventListener("click", () => {
-      extractedTextEl.value = "";
-      setPill("importPill", "<b>Import:</b> Debug-Text geleert", "");
-    });
-  }
-
-  extractedTextEl.addEventListener("paste", () => setTimeout(() => importFromDebugText("Text eingefügt"), 0));
-
-    // expose for onclick fallback
-  window.importFromDebugText = importFromDebugText;
-
-  
-  // === Robust global fallbacks for local-file / onclick ===
-  window.clearDebugText = function(){
-    try{
-      const ta = document.getElementById("extractedText");
-      if (ta) ta.value = "";
-      const pill = document.getElementById("importPill");
-      if (pill) pill.textContent = "Import: Debug-Text geleert";
-      console.log("cleared");
-    }catch(e){ console.error(e); }
-  };
-
-  window.importFromDebugText = function(label){
-    try{
-      console.log("importFromDebugText start", label);
-      const ta = document.getElementById("extractedText");
-      const txt = (ta ? ta.value : "").trim();
-
-      if (typeof setPill === "function"){
-        setPill("importPill", `<b>Import:</b> ${String(label||"Debug-Text")} …`, "");
-      } else {
-        const pill = document.getElementById("importPill");
-        if (pill) pill.textContent = "Import: " + (label||"Debug-Text") + " …";
-      }
-
-      const hintEl = document.getElementById("importHint");
-      if (hintEl) hintEl.textContent = "";
-
-      if (!txt){
-        if (typeof setPill === "function") setPill("importPill", "<b>Import:</b> kein Debug-Text", "warn");
-        if (hintEl) hintEl.textContent = "Bitte erst den Text in das Debug-Feld einfügen (oder PDF importieren).";
-        return;
-      }
-
-      const mode = document.getElementById("importMode")?.value || "single";
-      console.log("import mode:", mode);
-
-      let prepared = txt;
-      if (typeof preprocessTextForImportMode === "function"){
-        prepared = preprocessTextForImportMode(txt, mode);
-      }
-      console.log("prepared preview:", prepared.slice(0, 400));
-
-      const parsed = (typeof parseInvoiceFromText === "function") ? parseInvoiceFromText(prepared) : null;
-
-      if (parsed){
-        console.log("parsed ok. items:", parsed.items?.length);
-        if (typeof applyParsed === "function") applyParsed(parsed);
-        if (typeof setPill === "function") setPill("importPill", `<b>Import:</b> ${String(label||"Debug-Text")} ✓`, "ok");
-      } else {
-        console.warn("parsed null");
-        if (typeof setPill === "function") setPill("importPill", `<b>Import:</b> ${String(label||"Debug-Text")} – nichts erkannt`, "warn");
-        if (hintEl) hintEl.textContent = "Text vorhanden, aber Parser hat keine Positionen erkannt. Prüfe den Import-Modus (1/2/3 Zeilen) und ob die Tabelle im Text enthalten ist.";
-      }
-    } catch(err){
-      console.error("IMPORT ERROR", err);
-      const hintEl = document.getElementById("importHint");
-      if (hintEl) hintEl.textContent = "Import-Fehler: " + (err?.message || err);
-      if (typeof setPill === "function") setPill("importPill", "<b>Import:</b> Fehler (Konsole prüfen)", "warn");
-      else alert("Import-Fehler: " + (err?.message || err));
-    }
-  };
-
-(function init(){
-    setPill("workerPill", "<b>PDF.js:</b> bereit (wird bei Bedarf geladen)", "");
-    setPill("exportPill", "<b>Export:</b> bereit", "");
-    renderItems();
-    recalc();
-  })();
+  exaLog("Export erstellt: "+rows.length+" Zeilen");
+}
+function exaDeleteRow(i){ exaParsedRooms.splice(i,1); exaRender(); }
+function exaAddRow(){ exaParsedRooms.push({name:"", firstName:"", roomType:"DBL", adult:2, specials:"", source:""}); exaRender(); }
+
+q("viyaAnalyzeBtn").onclick=viyaAnalyze;
+q("viyaPickTemplateBtn").onclick=async ()=>{ try{ await pickTemplateManually(viyaLog); }catch(err){ viyaLog("Template-Auswahl Fehler: " + err.message); alert(err.message); } };
+q("viyaExportBtn").onclick=async ()=>{ try{ await viyaMaybeLoadTemplate(); viyaExport(true); }catch(err){ viyaLog("Template-Export Fehler: " + err.message); alert(err.message); } };
+q("viyaExportBlankBtn").onclick=()=>viyaExport(false);
+q("viyaAddRowBtn").onclick=viyaAddRow;
+
+q("emeAnalyzeBtn").onclick=emeAnalyze;
+q("emePickTemplateBtn").onclick=async ()=>{ try{ await pickTemplateManually(emeLog); }catch(err){ emeLog("Template-Auswahl Fehler: " + err.message); alert(err.message); } };
+q("emeExportBtn").onclick=async ()=>{ try{ await emeMaybeLoadTemplate(); emeExport(true); }catch(err){ emeLog("Template-Export Fehler: " + err.message); alert(err.message); } };
+q("emeExportBlankBtn").onclick=()=>emeExport(false);
+q("emeAddRowBtn").onclick=emeAddRow;
+
+q("exaAnalyzeBtn").onclick=exaAnalyze;
+q("exaPickTemplateBtn").onclick=async ()=>{ try{ await pickTemplateManually(exaLog); }catch(err){ exaLog("Template-Auswahl Fehler: " + err.message); alert(err.message); } };
+q("exaExportBtn").onclick=async ()=>{ try{ await exaMaybeLoadTemplate(); exaExport(true); }catch(err){ exaLog("Template-Export Fehler: " + err.message); alert(err.message); } };
+q("exaExportBlankBtn").onclick=()=>exaExport(false);
+q("exaAddRowBtn").onclick=exaAddRow;
+
+viyaLog("Viya-Modul geladen");
+emeLog("Emetravel-Modul geladen");
+exaLog("Exa-Modul geladen");
 </script>
 </body>
 </html>
-
-
