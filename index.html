@@ -577,10 +577,10 @@ CH-8050`;
       const lastDot = s.lastIndexOf(".");
       const lastComma = s.lastIndexOf(",");
       const decIsComma = lastComma > lastDot;
-      if (decIsComma) s = s.replace(/\./g,"").replace(",",".");
+      if (decIsComma) s = s.replace(/\./g,"").replace(",", ".");
       else s = s.replace(/,/g,"");
     } else if (hasComma && !hasDot){
-      s = s.replace(",",".");
+      s = s.replace(",", ".");
     } else {
       s = s.replace(/,/g,"");
     }
@@ -1171,6 +1171,17 @@ function isPaymentDesc(desc){
     return ok;
   }
 
+  async function waitForImages(root){
+    const imgs = Array.from(root.querySelectorAll("img"));
+    await Promise.all(imgs.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+    }));
+  }
+
   const tbody = document.querySelector("#itemsTable tbody");
 
   function renderItems(){
@@ -1466,18 +1477,66 @@ document.getElementById("jsonFile")?.addEventListener("change", (e) => {
   document.getElementById("exportPdfBtn").addEventListener("click", async () => {
     try{
       recalc();
+
       const ok = await ensureExportLibs();
-      if (!ok){ alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“."); return; }
+      if (!ok){
+        alert("Export-Libraries sind blockiert. Bitte nutze „Drucken / Als PDF speichern“.");
+        return;
+      }
+
+      setPill("exportPill", "<b>Export:</b> rendert…", "");
+
       const paper = document.getElementById("invoicePaper");
+      await waitForImages(paper);
+
+      // Offscreen-Klon für stabilen, sauberen Export
+      const exportWrap = document.createElement("div");
+      exportWrap.style.position = "fixed";
+      exportWrap.style.left = "-100000px";
+      exportWrap.style.top = "0";
+      exportWrap.style.width = "794px"; // ungefähr A4-Breite bei 96dpi
+      exportWrap.style.background = "#ffffff";
+      exportWrap.style.padding = "0";
+      exportWrap.style.margin = "0";
+      exportWrap.style.zIndex = "-1";
+
+      const clone = paper.cloneNode(true);
+      clone.style.width = "794px";
+      clone.style.maxWidth = "794px";
+      clone.style.border = "none";
+      clone.style.borderRadius = "0";
+      clone.style.boxShadow = "none";
+      clone.style.margin = "0";
+      clone.style.background = "#ffffff";
+      clone.style.fontKerning = "normal";
+      clone.style.textRendering = "geometricPrecision";
+      clone.style.webkitFontSmoothing = "antialiased";
+      clone.style.MozOsxFontSmoothing = "grayscale";
+
+      exportWrap.appendChild(clone);
+      document.body.appendChild(exportWrap);
+
       let canvas;
       try{
-        canvas = await html2canvas(paper, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-        canvas.toDataURL("image/png");
+        canvas = await html2canvas(clone, {
+          scale: 1.35,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+          imageTimeout: 15000,
+          removeContainer: true
+        });
+        canvas.toDataURL("image/jpeg", 0.78);
       } catch (e1){
-        canvas = await html2canvas(paper, {
-          scale: 2, useCORS: false, backgroundColor: "#ffffff",
+        canvas = await html2canvas(clone, {
+          scale: 1.35,
+          useCORS: false,
+          backgroundColor: "#ffffff",
+          logging: false,
+          imageTimeout: 15000,
+          removeContainer: true,
           onclone: (doc) => {
-            doc.querySelectorAll("#invoicePaper img").forEach(img => img.remove());
+            doc.querySelectorAll("#invoicePaper img, .logoBox img").forEach(img => img.remove());
             const fb = doc.getElementById("logoFallback");
             if (fb){
               fb.style.display = "block";
@@ -1487,31 +1546,53 @@ document.getElementById("jsonFile")?.addEventListener("change", (e) => {
           }
         });
       }
-      const imgData = canvas.toDataURL("image/png");
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = pageWidth;
-      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
 
-      if (imgHeight <= pageHeight){
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
-      } else {
-        let remaining = imgHeight;
-        let position = 0;
-        while (remaining > 0){
-          pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-          remaining -= pageHeight;
-          position -= pageHeight;
-          if (remaining > 0) pdf.addPage();
-        }
+      document.body.removeChild(exportWrap);
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({
+        orientation: "p",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+        putOnlyUsedFonts: true
+      });
+
+      const pageWidthMm = 210;
+      const pageHeightMm = 297;
+
+      // Canvas seitenweise schneiden statt ein riesiges Ganzbild ins PDF zu legen
+      const pageHeightPx = Math.floor(canvas.width * (pageHeightMm / pageWidthMm));
+      const totalPages = Math.ceil(canvas.height / pageHeightPx);
+
+      for (let pageIndex = 0; pageIndex < totalPages; pageIndex++){
+        const sliceCanvas = document.createElement("canvas");
+        const sliceHeightPx = Math.min(pageHeightPx, canvas.height - pageIndex * pageHeightPx);
+
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceHeightPx;
+
+        const ctx = sliceCanvas.getContext("2d", { alpha: false });
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+
+        ctx.drawImage(
+          canvas,
+          0, pageIndex * pageHeightPx, canvas.width, sliceHeightPx,
+          0, 0, sliceCanvas.width, sliceCanvas.height
+        );
+
+        const imgData = sliceCanvas.toDataURL("image/jpeg", 0.76);
+        const pageRenderHeightMm = (sliceHeightPx * pageWidthMm) / canvas.width;
+
+        if (pageIndex > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, 0, pageWidthMm, pageRenderHeightMm, undefined, "FAST");
       }
 
-      const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g,"_");
-      const title = getInvoiceTitle().replace(/[^\w\-]+/g,"_");
+      const inv = (v("invoiceNo") || "invoice").replace(/[^\w\-]+/g, "_");
+      const title = getInvoiceTitle().replace(/[^\w\-]+/g, "_");
       pdf.save(`Finale_${title}_${inv}.pdf`);
+
       setPill("exportPill", "<b>Export:</b> PDF erstellt ✓", "ok");
     } catch (err){
       setPill("exportPill", "<b>Export:</b> Fehler", "warn");
@@ -2064,5 +2145,3 @@ document.getElementById("jsonFile")?.addEventListener("change", (e) => {
 </script>
 </body>
 </html>
-
-
